@@ -1,0 +1,123 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "createElbow_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nimport sys \r\nimport System   \r\nimport math\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB.Plumbing import*\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\"\"\"_______________________________________________________________________________________\"\"\"\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\r\n#region _function\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return result\r\nclass selectionFilter(ISelectionFilter):\r\n    def __init__(self,categories):\r\n        self.categories = categories\r\n    def AllowElement(self, element):\r\n        eleName = element.Category.Name in self.categories\r\n        return eleName\r\ndef pickFittingOrAccessory():\r\n    categories = ['Pipe Fittings', 'Pipe Accessories']\r\n    fittingFilter = selectionFilter(categories)\r\n    ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, fittingFilter, 'Pick fitting or Accessory')\r\n    desEle = doc.GetElement(ref.ElementId)\r\n    return desEle\r\ndef pickPipe():\r\n    category = ['Pipes']\r\n    pipeFilter = selectionFilter(category)\r\n    ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter, 'Pick Pipe')\r\n    desPipe = doc.GetElement(ref.ElementId)\r\n    return desPipe\r\ndef getConnectedElement(doc, ele):\r\n    _connectedEle = None\r\n    desEle = []\r\n    conns = ele.MEPModel.ConnectorManager.Connectors\r\n    for conn in conns:\r\n        if conn.IsConnected:\r\n            for refConn in conn.AllRefs:\r\n                connectedEle = refConn.Owner\r\n                if connectedEle.Id != ele.Id:\r\n                    _connectedEle = connectedEle\r\n    return _connectedEle\r\ndef unconnectedConn(doc, fittingOrAccessory):\r\n    conns = list(fittingOrAccessory.MEPModel.ConnectorManager.Connectors.GetEnumerator())\r\n    _connectedConn = None\r\n    _unConnectedConn = None\r\n    for conn in conns:\r\n        if conn.IsConnected:\r\n            _connectedConn = conn\r\n        else:\r\n            _unConnectedConn = conn\r\n    return _unConnectedConn\r\ndef findNearestConnector(connectorSet, targetPoint):\r\n    nearest_connector = None\r\n    minDistance = float('inf')\r\n    \r\n    for connector in connectorSet:\r\n        distance = (connector.Origin - targetPoint).GetLength()\r\n        if distance < minDistance:\r\n            minDistance = distance\r\n            nearestConnector = connector\r\n    return nearestConnector\r\ndef connect2Connectors(doc, pipePart1, pipePart2):\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    if pipePart1.Category.Name != 'Pipes':\r\n        pipePart1Connectors = [conn for conn in pipePart1.MEPModel.ConnectorManager.Connectors]   \r\n    else:\r\n        pipePart1Connectors = [conn for conn in pipePart1.ConnectorManager.Connectors]     \r\n    if pipePart2.Category.Name != 'Pipes':\r\n        pipePart2Connectors = [conn for conn in pipePart2.MEPModel.ConnectorManager.Connectors]   \r\n    else:\r\n        pipePart1Connectors = [conn for conn in pipePart2.ConnectorManager.Connectors] \r\n    nearestPipePart1Conn = findNearestConnector(pipePart1Connectors, pipePart2Connectors[0].Origin)\r\n    nearestPipePart2Conn = findNearestConnector(pipePart2Connectors, pipePart1Connectors[0].Origin)    \r\n    nearestPipePart1Conn.ConnectTo(nearestPipePart2Conn)\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return nearestPipePart1Conn, nearestPipePart2Conn\r\n\r\ndef CreateElbow(doc, pipes):\r\n\tconnectors = []\r\n\telbowList = []\r\n\ttry:\r\n\t\tfor pipe in pipes:\r\n\t\t\tconnectors.append(pipe.ConnectorManager.Connectors)\r\n\texcept:\r\n\t\tpass\r\n\tTransactionManager.Instance.EnsureInTransaction(doc)\r\n\ttry:\r\n\t\tfor set1, set2 in zip(connectors[:-1], connectors[1:]):\r\n\t\t\tconStart = list(set1)\r\n\t\t\tconEnd = list(set2)\r\n\t\t\td1 = conStart[0].Origin.DistanceTo(conEnd[0].Origin)*conStart[0].Origin.DistanceTo(conEnd[1].Origin)\r\n\t\t\td2 = conStart[1].Origin.DistanceTo(conEnd[0].Origin)*conStart[1].Origin.DistanceTo(conEnd[1].Origin)\r\n\t\t\ti = 0\r\n\t\t\tif d1 > d2:\r\n\t\t\t\ti = 1\r\n\t\t\td3 = conEnd[0].Origin.DistanceTo(conStart[0].Origin)*conEnd[0].Origin.DistanceTo(conStart[1].Origin)\r\n\t\t\td4 = conEnd[1].Origin.DistanceTo(conStart[0].Origin)*conEnd[1].Origin.DistanceTo(conStart[1].Origin)\r\n\t\t\tj = 0\r\n\t\t\tif d3 > d4:\r\n\t\t\t\tj = 1\r\n\t\t\tfitting = doc.Create.NewElbowFitting(conStart[i],conEnd[j])\r\n\t\t\telbowList.append(fitting)\r\n\texcept:\r\n\t\tpass\r\n\treturn elbowList[0]\r\ndef findNearestConnectorOf2Fittings(fitting1, fitting2):\r\n    nearest_connector = []\r\n    minDistance = float('inf')\r\n    conns1 = list(fitting1.MEPModel.ConnectorManager.Connectors.GetEnumerator())\r\n    conns2 = list(fitting2.MEPModel.ConnectorManager.Connectors.GetEnumerator())\r\n    for c1,c2 in zip(conns1, conns2):\r\n        distance = (c1.Origin - c2.Origin).GetLength()\r\n        if distance < minDistance:\r\n            minDistance = distance\r\n            nearestConnector = [c1,c2]\r\n    return nearestConnector\r\ndef planeFrom3Points(point1, point2, point3):\r\n    vector1 = point2 - point1\r\n    vector2 = point3 - point1\r\n    normal = vector1.CrossProduct(vector2).Normalize()\r\n    plane = Plane.CreateByNormalAndOrigin(normal, point1)  \r\n    return plane\r\n#endregion\r\n'''___'''\r\nfittingOrAccessory = pickFittingOrAccessory()\r\nbasePipe = pickPipe()\r\n#region __input Angle\r\nclass MyForm(Form):\r\n    def __init__(self):\r\n        self.Text = ''\r\n        self.Size = Size(300, 180)\r\n        self.Font = System.Drawing.Font(\"Meiryo UI\", 7.5, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n        self.ForeColor = System.Drawing.Color.Red   \r\n        # Create and add label\r\n        self.label = Label()\r\n        self.label.Text = \"Angle\"\r\n        self.label.Size = Size(260,20)\r\n        self.label.Location = Point(10, 10)\r\n        self.Controls.Add(self.label)       \r\n        # Create and add text box\r\n        self.textBox = TextBox()\r\n        self.textBox.Location = Point(10, 40)\r\n        self.textBox.Size = Size(260, 20)\r\n        self.Controls.Add(self.textBox)      \r\n        # Create and add OK button\r\n        self.okButton = Button()\r\n        self.okButton.Text = 'OK'\r\n        self.okButton.Location = Point(120, 90)\r\n        self.okButton.Click += self.okButton_Click\r\n        self.Controls.Add(self.okButton)  \r\n        # Create and add Cancel button\r\n        self.cancelButton = Button()\r\n        self.cancelButton.Text = 'Cancel'\r\n        self.cancelButton.Location = Point(200, 90)\r\n        self.cancelButton.Click += self.cancelButton_Click\r\n        self.Controls.Add(self.cancelButton)\r\n        # label\r\n        self.fvcLabel = Label()\r\n        self.fvcLabel.Text = \"@FVC\"\r\n        self.fvcLabel.Size = Size(50, 20)\r\n        self.fvcLabel.Location = Point(10, 110)  # Bottom left corner\r\n        self.Controls.Add(self.fvcLabel)        \r\n        self.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n        self.result = None\r\n    def okButton_Click(self, sender, event):\r\n        self.result = self.textBox.Text\r\n        self.DialogResult = DialogResult.OK\r\n        self.Close()\r\n    def cancelButton_Click(self, sender, event):\r\n        self.DialogResult = DialogResult.Cancel\r\n        self.Close()\r\nform = MyForm()\r\nresult = form.ShowDialog()\r\nif result == DialogResult.OK:\r\n    text_input = form.result\r\nelse:\r\n    text_input = None\r\nangle = float(text_input)\r\n#endregion\r\n#endregion\r\n'''___'''\r\n#region __copy parameters of base pipe to create temporary  pipe 1 and temporary pipe 2\r\npipeTypeId = basePipe.PipeType.Id\r\npipingSystemId = basePipe.MEPSystem.GetTypeId()\r\nlevelId = doc.GetElement(basePipe.ReferenceLevel.Id)\r\ndiam = basePipe.LookupParameter('Diameter').AsDouble()\r\n#endregion\r\nconn = unconnectedConn(doc, fittingOrAccessory)\r\nstartPoint = conn.Origin\r\ndirection = conn.CoordinateSystem.BasisZ\r\nlength = basePipe.LookupParameter('Diameter').AsDouble()*5\r\nendPoint1 = startPoint + direction.Multiply(length)\r\n#region __Create temporary pipe 1\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nnewPipe1 = Pipe.Create(doc,pipingSystemId, pipeTypeId, levelId.Id, startPoint, endPoint1)\r\nnewPipeDiam = newPipe1.LookupParameter('Diameter')\r\nnewPipeDiam.Set(diam)\r\nconnect = connect2Connectors(doc, newPipe1, fittingOrAccessory)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n#endregion\r\n#region __create temporary pipe 2 and connect temporary pipe 1 to temporary pipe 2 by elbow\r\nrotateAxis = XYZ.BasisZ #rotation axis . asuming rotation axis is\r\n_endPoint2 = endPoint1 + direction.Multiply(length)\r\nrotationTransform = Transform.CreateRotationAtPoint(rotateAxis, math.radians(angle), endPoint1)\r\nendPoint2 = rotationTransform.OfPoint(_endPoint2)\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\npipes = []\r\nnewPipe2 = Pipe.Create(doc,pipingSystemId, pipeTypeId, levelId.Id, endPoint1, endPoint2)\r\nnewPipeDiam = newPipe2.LookupParameter('Diameter')\r\nnewPipeDiam.Set(diam)\r\npipes.append(newPipe1)\r\npipes.append(newPipe2)\r\nelbow1 = CreateElbow(doc, pipes)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n#endregion\r\nnearConns1 = findNearestConnectorOf2Fittings(fittingOrAccessory, elbow1)\r\n#region ___get near connector of first fitting and new fitting\r\nfittingOrAccessory_Conn = None\r\nelbow1_conn = None\r\nfor c in nearConns1:\r\n    if c.Owner.Id == fittingOrAccessory.Id:\r\n        fittingOrAccessory_Conn = c.Origin\r\n    else:\r\n        elbow1_conn = c.Origin\r\n#endregion\r\n#region _move temporary elbow to base elbow\r\n#create temporary plane from base elbow unconnected connector and elbow1 connectors\r\n_elbow1Conns = list(elbow1.MEPModel.ConnectorManager.Connectors)\r\n_elbow1ConnsOrigin = [c.Origin for c in _elbow1Conns]\r\ntempPlane = planeFrom3Points(_elbow1ConnsOrigin[1], _elbow1ConnsOrigin[0], startPoint)\r\ntempSketchPlane = SketchPlane.Create(doc, tempPlane)\r\ndoc.ActiveView.SketchPlane = tempSketchPlane\r\ntransVector1 = fittingOrAccessory_Conn - elbow1_conn\r\ntransform1 = Autodesk.Revit.DB.Transform.CreateTranslation(transVector1)\r\nElementTransformUtils.MoveElement(doc, elbow1.Id, transVector1)\r\ndoc.Delete(tempSketchPlane.Id)\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nif elbow1:\r\n    elbow1Conns = list(elbow1.MEPModel.ConnectorManager.Connectors)\r\n    elbow1ConnsOrigin = [c.Origin for c in elbow1Conns]\r\n    connectedEle = None\r\n    for conn in elbow1Conns:\r\n         if conn.IsConnected:\r\n              for refConn in conn.AllRefs:\r\n                   connectedElement = refConn.Owner\r\n                   if connectedElement.Id != elbow1.Id:\r\n                        connectedEle = connectedElement\r\n                        del_connectedEle = doc.Delete(connectedEle.Id)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n#endregion\r\n# connectElbow1_1stFitting = connect2Connectors(doc, fittingOrAccessory,elbow1[0])\r\n'''___'''\r\nOUT = fittingOrAccessory, elbow1",
+      "Engine": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "feb8cc60dac3452e8cc973eb94f183f3",
+      "Inputs": [
+        {
+          "Id": "722de25a0c8a42429b5c83fcb38d9755",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "d6b62184f61a4b5b92b53a5096a0829f",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": false,
+      "Id": "7ea7ea69e01f428d863285dc74607bb6",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "d38fe8756c1740f992a3b7036f7d7e55",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Selection between a true and false."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "d38fe8756c1740f992a3b7036f7d7e55",
+      "End": "722de25a0c8a42429b5c83fcb38d9755",
+      "Id": "78c15af39c1f4e19945d1c99625684ab"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.10.1.3976",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "NodeViews": [
+      {
+        "ShowGeometry": true,
+        "Name": "Hello world",
+        "Id": "feb8cc60dac3452e8cc973eb94f183f3",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 336.00000000000006,
+        "Y": 207.20000000000013
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Boolean",
+        "Id": "7ea7ea69e01f428d863285dc74607bb6",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 171.20000000000002,
+        "Y": 200.00000000000003
+      }
+    ],
+    "Annotations": [],
+    "X": 0.0,
+    "Y": 0.0,
+    "Zoom": 1.0
+  }
+}

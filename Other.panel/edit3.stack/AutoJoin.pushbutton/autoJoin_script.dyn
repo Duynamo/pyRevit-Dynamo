@@ -1,0 +1,173 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "autoJoin_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "# -*- coding: utf-8 -*-\r\n\"\"\"\r\nAlpha BIM - Auto Join Tool\r\nIronPython for Dynamo / Revit\r\n\"\"\"\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  IMPORTS\r\n# ════════════════════════════════════════════════════════\r\nimport clr\r\nimport System\r\nimport json\r\n\r\n# ── Revit API ──────────────────────────────────────────\r\nclr.AddReference(\"RevitAPI\")\r\nclr.AddReference(\"RevitAPIUI\")\r\nfrom Autodesk.Revit.DB import (\r\n    FilteredElementCollector, ElementId, Transaction,\r\n    JoinGeometryUtils, BuiltInCategory,\r\n    FailureHandlingOptions, FailureProcessingResult\r\n)\r\nfrom Autodesk.Revit.DB import IFailuresPreprocessor\r\n\r\n# ── Dynamo / RevitServices ─────────────────────────────\r\nclr.AddReference(\"RevitServices\")\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\n# ── WPF ────────────────────────────────────────────────\r\nclr.AddReference(\"PresentationFramework\")\r\nclr.AddReference(\"PresentationCore\")\r\nclr.AddReference(\"WindowsBase\")\r\nclr.AddReference(\"System.Data\")\r\n\r\nfrom System.Data import DataTable\r\nfrom System.Collections.Generic import List as NetList\r\nfrom System.Windows import MessageBox, MessageBoxButton, MessageBoxImage, PropertyPath\r\nfrom System.Windows.Controls import (\r\n    DataGridComboBoxColumn, DataGridCheckBoxColumn,\r\n    DataGridLength, DataGridLengthUnitType, MenuItem\r\n)\r\nfrom System.Windows.Data import Binding\r\nfrom System.Windows.Markup import XamlReader\r\n\r\n# ── WinForms (file dialogs) ────────────────────────────\r\nclr.AddReference(\"System.Windows.Forms\")\r\nimport System.Windows.Forms as WinForms\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  REVIT CONTEXT  (Dynamo style)\r\n# ════════════════════════════════════════════════════════\r\ndoc   = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\nuidoc = uiapp.ActiveUIDocument\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  CATEGORY REGISTRY\r\n# ════════════════════════════════════════════════════════\r\nCATEGORY_MAP = {\r\n    \"Beam\":          BuiltInCategory.OST_StructuralFraming,\r\n    \"Ceiling\":       BuiltInCategory.OST_Ceilings,\r\n    \"Column\":        BuiltInCategory.OST_Columns,\r\n    \"Floor\":         BuiltInCategory.OST_Floors,\r\n    \"Foundation\":    BuiltInCategory.OST_StructuralFoundation,\r\n    \"Generic Model\": BuiltInCategory.OST_GenericModel,\r\n    \"Roof\":          BuiltInCategory.OST_Roofs,\r\n    \"Wall\":          BuiltInCategory.OST_Walls,\r\n}\r\n\r\nPRIORITY_CATS  = sorted(CATEGORY_MAP.keys())\r\nJOIN_WITH_CATS = [\"<All>\"] + sorted(CATEGORY_MAP.keys())\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  DATA TABLE HELPERS\r\n# ════════════════════════════════════════════════════════\r\ndef make_table():\r\n    t = DataTable(\"Rules\")\r\n    t.Columns.Add(\"PriorityCategory\", System.String)\r\n    t.Columns.Add(\"JoinWithCategory\",  System.String)\r\n    t.Columns.Add(\"Reverse\",           System.Boolean)\r\n    return t\r\n\r\ndef table_add_row(tbl, pc=\"Wall\", jw=\"<All>\", rev=False):\r\n    r = tbl.NewRow()\r\n    r[\"PriorityCategory\"] = pc\r\n    r[\"JoinWithCategory\"]  = jw\r\n    r[\"Reverse\"]           = rev\r\n    tbl.Rows.Add(r)\r\n\r\ndef table_to_rules(tbl):\r\n    return [\r\n        {\r\n            \"priority\":  str(row[\"PriorityCategory\"]),\r\n            \"join_with\": str(row[\"JoinWithCategory\"]),\r\n            \"reverse\":   bool(row[\"Reverse\"]),\r\n        }\r\n        for row in tbl.Rows\r\n    ]\r\n\r\ndef rules_to_table(rules, tbl):\r\n    tbl.Clear()\r\n    for r in rules:\r\n        table_add_row(\r\n            tbl,\r\n            r.get(\"priority\",  \"Wall\"),\r\n            r.get(\"join_with\", \"<All>\"),\r\n            bool(r.get(\"reverse\", False))\r\n        )\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  REVIT JOIN LOGIC\r\n# ════════════════════════════════════════════════════════\r\ndef collect_elements(bic, scope_ids=None):\r\n    try:\r\n        if scope_ids:\r\n            col = FilteredElementCollector(doc, NetList[ElementId](scope_ids))\r\n        else:\r\n            col = FilteredElementCollector(doc, doc.ActiveView.Id)\r\n        return list(col.OfCategory(bic).WhereElementIsNotElementType())\r\n    except Exception:\r\n        return []\r\n\r\ndef bboxes_overlap(e1, e2, tol=0.01):\r\n    try:\r\n        b1 = e1.get_BoundingBox(None)\r\n        b2 = e2.get_BoundingBox(None)\r\n        if not b1 or not b2:\r\n            return False\r\n        return not (\r\n            b1.Max.X + tol < b2.Min.X or b2.Max.X + tol < b1.Min.X or\r\n            b1.Max.Y + tol < b2.Min.Y or b2.Max.Y + tol < b1.Min.Y or\r\n            b1.Max.Z + tol < b2.Min.Z or b2.Max.Z + tol < b1.Min.Z\r\n        )\r\n    except Exception:\r\n        return False\r\n\r\n# ────────────────────────────────────────────────────────\r\n#  Failure preprocessor – silently dismiss non-fatal\r\n#  Revit warnings such as \"Can't cut joined element\"\r\n# ────────────────────────────────────────────────────────\r\nclass _SilentPreprocessor(IFailuresPreprocessor):\r\n    \"\"\"\r\n    Implements IFailuresPreprocessor.\r\n    • Deletes all warnings (severity = Warning) automatically.\r\n    • Leaves errors alone so Revit can still report them if needed.\r\n    \"\"\"\r\n    def PreprocessFailures(self, fa):\r\n        from Autodesk.Revit.DB import FailureSeverity\r\n        for msg in list(fa.GetFailureMessages()):\r\n            if msg.GetSeverity() == FailureSeverity.Warning:\r\n                fa.DeleteWarning(msg)\r\n        return FailureProcessingResult.Continue\r\n\r\n\r\ndef _make_tx_options():\r\n    \"\"\"Return FailureHandlingOptions that suppress warning dialogs.\"\"\"\r\n    opts = Transaction.GetFailureHandlingOptions(Transaction(doc, \"_\"))\r\n    # Re-create properly attached to a real transaction later;\r\n    # this helper just builds default options – we override per-tx below.\r\n    return None   # placeholder – see usage in run_autojoin\r\n\r\n\r\ndef _join_pair(doc, e1, e2, rev, do_unjoin, tx):\r\n    \"\"\"\r\n    Join e1–e2 inside an already-open transaction.\r\n    Returns True if a join was created or already existed.\r\n    Raises on hard errors; swallows switch-order failures silently.\r\n    \"\"\"\r\n    is_joined = JoinGeometryUtils.AreElementsJoined(doc, e1, e2)\r\n\r\n    if do_unjoin and is_joined:\r\n        JoinGeometryUtils.UnjoinGeometry(doc, e1, e2)\r\n        is_joined = False\r\n\r\n    if not is_joined:\r\n        JoinGeometryUtils.JoinGeometry(doc, e1, e2)\r\n        is_joined = True\r\n\r\n    # Adjust cut order – this is what triggers \"Can't cut joined element\"\r\n    # when Revit's geometry forbids the switch; we catch and ignore it.\r\n    if is_joined:\r\n        try:\r\n            e1_cuts = JoinGeometryUtils.IsCuttingElementInJoin(doc, e1, e2)\r\n            need_switch = (not rev and not e1_cuts) or (rev and e1_cuts)\r\n            if need_switch:\r\n                JoinGeometryUtils.SwitchJoinOrder(doc, e1, e2)\r\n        except Exception:\r\n            pass   # geometry doesn't allow a switch – that's fine\r\n\r\n    return is_joined\r\n\r\n\r\ndef run_autojoin(rules, scope=\"view\", scope_ids=None, do_unjoin=False):\r\n    \"\"\"\r\n    Execute all join rules.\r\n    Each element-pair runs inside the same Transaction but with\r\n    FailureHandlingOptions set to suppress Revit warning dialogs.\r\n    \"\"\"\r\n    ids          = scope_ids if (scope == \"selected\" and scope_ids) else None\r\n    joined_count = 0\r\n    warnings     = []\r\n\r\n    tx = Transaction(doc, \"AutoJoin\")\r\n\r\n    # ── Suppress \"Can't cut joined element\" and similar warnings ──\r\n    fho = tx.GetFailureHandlingOptions()\r\n    fho.SetFailuresPreprocessor(_SilentPreprocessor())\r\n    fho.SetClearAfterRollback(True)\r\n    tx.SetFailureHandlingOptions(fho)\r\n\r\n    tx.Start()\r\n    try:\r\n        for rule in rules:\r\n            pc  = rule[\"priority\"]\r\n            jw  = rule[\"join_with\"]\r\n            rev = rule[\"reverse\"]\r\n            if pc not in CATEGORY_MAP:\r\n                continue\r\n\r\n            elems1 = collect_elements(CATEGORY_MAP[pc], ids)\r\n\r\n            if jw == \"<All>\":\r\n                elems2 = []\r\n                for cat_name, bic in CATEGORY_MAP.items():\r\n                    if cat_name != pc:\r\n                        elems2.extend(collect_elements(bic, ids))\r\n            elif jw in CATEGORY_MAP:\r\n                elems2 = collect_elements(CATEGORY_MAP[jw], ids)\r\n            else:\r\n                continue\r\n\r\n            seen = set()\r\n            for e1 in elems1:\r\n                for e2 in elems2:\r\n                    if e1.Id == e2.Id:\r\n                        continue\r\n                    key = (\r\n                        min(e1.Id.IntegerValue, e2.Id.IntegerValue),\r\n                        max(e1.Id.IntegerValue, e2.Id.IntegerValue),\r\n                    )\r\n                    if key in seen:\r\n                        continue\r\n                    seen.add(key)\r\n\r\n                    if not bboxes_overlap(e1, e2):\r\n                        continue\r\n\r\n                    try:\r\n                        if _join_pair(doc, e1, e2, rev, do_unjoin, tx):\r\n                            joined_count += 1\r\n                    except Exception as pair_ex:\r\n                        warnings.append(u\"[{}-{}] {}\".format(\r\n                            e1.Id.IntegerValue,\r\n                            e2.Id.IntegerValue,\r\n                            str(pair_ex)))\r\n\r\n        tx.Commit()\r\n\r\n    except Exception as ex:\r\n        if tx.HasStarted() and not tx.HasEnded():\r\n            tx.RollbackIfPossible()\r\n        raise ex\r\n\r\n    return joined_count, warnings\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  WPF WINDOW XAML\r\n# ════════════════════════════════════════════════════════\r\nWINDOW_XAML = u\"\"\"<Window\r\n    xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\r\n    xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\r\n    Title=\"V2D - Auto Join\"\r\n    Width=\"600\" Height=\"500\"\r\n    MinWidth=\"480\" MinHeight=\"400\"\r\n    WindowStartupLocation=\"CenterScreen\"\r\n    FontFamily=\"Segoe UI\" FontSize=\"12\"\r\n    Background=\"White\">\r\n\r\n  <Window.Resources>\r\n\r\n    <Style x:Key=\"ToolBtn\" TargetType=\"Button\">\r\n      <Setter Property=\"Background\"  Value=\"#F0F0F0\"/>\r\n      <Setter Property=\"BorderBrush\" Value=\"#BBBBBB\"/>\r\n      <Setter Property=\"Padding\"     Value=\"8,0\"/>\r\n      <Setter Property=\"Height\"      Value=\"26\"/>\r\n      <Setter Property=\"Cursor\"      Value=\"Hand\"/>\r\n      <Style.Triggers>\r\n        <Trigger Property=\"IsMouseOver\" Value=\"True\">\r\n          <Setter Property=\"Background\" Value=\"#E0E0E0\"/>\r\n        </Trigger>\r\n        <Trigger Property=\"IsPressed\" Value=\"True\">\r\n          <Setter Property=\"Background\" Value=\"#D0D0D0\"/>\r\n        </Trigger>\r\n      </Style.Triggers>\r\n    </Style>\r\n\r\n    <Style x:Key=\"OkBtn\" TargetType=\"Button\">\r\n      <Setter Property=\"Background\"  Value=\"#43A047\"/>\r\n      <Setter Property=\"Foreground\"  Value=\"White\"/>\r\n      <Setter Property=\"BorderBrush\" Value=\"#2E7D32\"/>\r\n      <Setter Property=\"Cursor\"      Value=\"Hand\"/>\r\n      <Style.Triggers>\r\n        <Trigger Property=\"IsMouseOver\" Value=\"True\">\r\n          <Setter Property=\"Background\" Value=\"#2E7D32\"/>\r\n        </Trigger>\r\n        <Trigger Property=\"IsPressed\" Value=\"True\">\r\n          <Setter Property=\"Background\" Value=\"#1B5E20\"/>\r\n        </Trigger>\r\n      </Style.Triggers>\r\n    </Style>\r\n\r\n    <Style x:Key=\"HeaderStyle\" TargetType=\"DataGridColumnHeader\">\r\n      <Setter Property=\"Background\"                Value=\"#43A047\"/>\r\n      <Setter Property=\"Foreground\"                Value=\"White\"/>\r\n      <Setter Property=\"FontWeight\"                Value=\"Bold\"/>\r\n      <Setter Property=\"Padding\"                   Value=\"12,0\"/>\r\n      <Setter Property=\"Height\"                    Value=\"32\"/>\r\n      <Setter Property=\"BorderBrush\"               Value=\"#357A38\"/>\r\n      <Setter Property=\"BorderThickness\"           Value=\"0,0,1,0\"/>\r\n      <Setter Property=\"HorizontalContentAlignment\" Value=\"Left\"/>\r\n    </Style>\r\n\r\n  </Window.Resources>\r\n\r\n  <Grid>\r\n    <Grid.RowDefinitions>\r\n      <RowDefinition Height=\"38\"/>\r\n      <RowDefinition Height=\"*\"/>\r\n      <RowDefinition Height=\"Auto\"/>\r\n      <RowDefinition Height=\"52\"/>\r\n    </Grid.RowDefinitions>\r\n\r\n    <!-- Toolbar -->\r\n    <Border Grid.Row=\"0\" Background=\"#F5F5F5\"\r\n            BorderBrush=\"#DDDDDD\" BorderThickness=\"0,0,0,1\">\r\n      <StackPanel Orientation=\"Horizontal\" VerticalAlignment=\"Center\" Margin=\"8,0\">\r\n        <Button Name=\"btnImport\" Content=\"Import\"\r\n                Style=\"{StaticResource ToolBtn}\" Width=\"82\" Margin=\"2,0\"\r\n                ToolTip=\"Import rules from JSON file\"/>\r\n        <Button Name=\"btnExport\" Content=\"Export\"\r\n                Style=\"{StaticResource ToolBtn}\" Width=\"82\" Margin=\"2,0\"\r\n                ToolTip=\"Save current rules to JSON file\"/>\r\n        <Rectangle Width=\"1\" Fill=\"#CCCCCC\" Margin=\"8,5\"/>\r\n        <Button Name=\"btnAdd\"    Content=\"+ Add Rule\"\r\n                Style=\"{StaticResource ToolBtn}\" Width=\"90\" Margin=\"2,0\"/>\r\n        <Button Name=\"btnDelete\" Content=\"Delete\"\r\n                Style=\"{StaticResource ToolBtn}\" Width=\"78\" Margin=\"2,0\"/>\r\n      </StackPanel>\r\n    </Border>\r\n\r\n    <!-- DataGrid (columns added from code-behind) -->\r\n    <DataGrid Name=\"dgRules\" Grid.Row=\"1\"\r\n              AutoGenerateColumns=\"False\"\r\n              CanUserAddRows=\"False\"\r\n              CanUserDeleteRows=\"False\"\r\n              SelectionMode=\"Extended\"\r\n              SelectionUnit=\"FullRow\"\r\n              GridLinesVisibility=\"Horizontal\"\r\n              HorizontalGridLinesBrush=\"#E8E8E8\"\r\n              AlternatingRowBackground=\"#F1FFF2\"\r\n              RowBackground=\"White\"\r\n              BorderThickness=\"0\"\r\n              RowHeight=\"28\"\r\n              ColumnHeaderStyle=\"{StaticResource HeaderStyle}\">\r\n\r\n      <DataGrid.RowStyle>\r\n        <Style TargetType=\"DataGridRow\">\r\n          <Style.Triggers>\r\n            <Trigger Property=\"IsSelected\" Value=\"True\">\r\n              <Setter Property=\"Background\" Value=\"#BBDEFB\"/>\r\n              <Setter Property=\"Foreground\" Value=\"#0D47A1\"/>\r\n            </Trigger>\r\n          </Style.Triggers>\r\n        </Style>\r\n      </DataGrid.RowStyle>\r\n\r\n      <DataGrid.ContextMenu>\r\n        <ContextMenu FontFamily=\"Segoe UI\" FontSize=\"12\">\r\n          <MenuItem Name=\"miNewRule\"    Header=\"New Rule\"\r\n                    ToolTip=\"Duplicate selected row and append\"/>\r\n          <MenuItem Name=\"miDeleteRule\" Header=\"Delete selected Rules\"\r\n                    ToolTip=\"Remove highlighted rows\"/>\r\n        </ContextMenu>\r\n      </DataGrid.ContextMenu>\r\n\r\n    </DataGrid>\r\n\r\n    <!-- Scope Section -->\r\n    <Border Grid.Row=\"2\" BorderBrush=\"#DDDDDD\" BorderThickness=\"0,1,0,0\"\r\n            Background=\"#FAFAFA\" Padding=\"12,10\">\r\n      <StackPanel>\r\n        <TextBlock Text=\"PHAM VI DOI TUONG UU TIEN\"\r\n                   FontWeight=\"Bold\" FontSize=\"10\" Foreground=\"#666666\"\r\n                   Margin=\"0,0,0,6\"/>\r\n        <StackPanel Orientation=\"Horizontal\">\r\n          <RadioButton Name=\"rbView\"\r\n                       Content=\"Tren View\"\r\n                       IsChecked=\"True\" GroupName=\"Scope\"\r\n                       Margin=\"0,0,28,0\" VerticalContentAlignment=\"Center\"/>\r\n          <RadioButton Name=\"rbSelected\"\r\n                       Content=\"Tren cac doi tuong duoc chon\"\r\n                       GroupName=\"Scope\" VerticalContentAlignment=\"Center\"/>\r\n        </StackPanel>\r\n      </StackPanel>\r\n    </Border>\r\n\r\n    <!-- Options + OK -->\r\n    <Border Grid.Row=\"3\" Background=\"#EFEFEF\"\r\n            BorderBrush=\"#DDDDDD\" BorderThickness=\"0,1,0,0\">\r\n      <Grid Margin=\"12,0\">\r\n        <Grid.ColumnDefinitions>\r\n          <ColumnDefinition Width=\"*\"/>\r\n          <ColumnDefinition Width=\"Auto\"/>\r\n        </Grid.ColumnDefinitions>\r\n\r\n        <StackPanel Orientation=\"Horizontal\" VerticalAlignment=\"Center\" Grid.Column=\"0\">\r\n          <CheckBox Name=\"chkUnjoin\"\r\n                    Content=\"Unjoin\"\r\n                    Margin=\"0,0,16,0\" VerticalContentAlignment=\"Center\"\r\n                    ToolTip=\"Unjoin truoc khi join lai\"/>\r\n          <CheckBox Name=\"chkCutSel\"\r\n                    Content=\"Cat doi tuong duoc chon\"\r\n                    Margin=\"0,0,16,0\" VerticalContentAlignment=\"Center\"/>\r\n          <CheckBox Name=\"chkCutOther\"\r\n                    Content=\"Cat doi tuong khac\"\r\n                    VerticalContentAlignment=\"Center\"/>\r\n        </StackPanel>\r\n\r\n        <Button Name=\"btnOK\" Grid.Column=\"1\"\r\n                Content=\"OK\"\r\n                Width=\"90\" Height=\"30\"\r\n                FontWeight=\"Bold\" FontSize=\"13\"\r\n                Margin=\"0,11\"\r\n                Style=\"{StaticResource OkBtn}\"/>\r\n      </Grid>\r\n    </Border>\r\n\r\n  </Grid>\r\n</Window>\"\"\"\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  WINDOW CONTROLLER\r\n# ════════════════════════════════════════════════════════\r\nclass AutoJoinWindow(object):\r\n\r\n    def __init__(self, preselected_ids):\r\n        self.preselected_ids = list(preselected_ids)\r\n        self.table = make_table()\r\n        table_add_row(self.table, \"Column\", \"<All>\", False)  # default row\r\n\r\n        self.window = XamlReader.Parse(WINDOW_XAML)\r\n        self._find_controls()\r\n        self._setup_columns()\r\n        self._bind_events()\r\n\r\n    # ── helpers ───────────────────────────────────────────\r\n    def _find(self, name):\r\n        return self.window.FindName(name)\r\n\r\n    def _make_binding(self, path_str):\r\n        \"\"\"\r\n        FIX: In IronPython, Binding(string) resolves to the wrong overload.\r\n        Use Binding() + PropertyPath instead.\r\n        \"\"\"\r\n        b = Binding()\r\n        b.Path = PropertyPath(path_str)\r\n        return b\r\n\r\n    # ── find controls ─────────────────────────────────────\r\n    def _find_controls(self):\r\n        self.dg       = self._find(\"dgRules\")\r\n        self.rb_view  = self._find(\"rbView\")\r\n        self.rb_sel   = self._find(\"rbSelected\")\r\n        self.chk_un   = self._find(\"chkUnjoin\")\r\n        self.chk_csel = self._find(\"chkCutSel\")\r\n        self.chk_coth = self._find(\"chkCutOther\")\r\n        self.btn_ok   = self._find(\"btnOK\")\r\n        self.btn_imp  = self._find(\"btnImport\")\r\n        self.btn_exp  = self._find(\"btnExport\")\r\n        self.btn_add  = self._find(\"btnAdd\")\r\n        self.btn_del  = self._find(\"btnDelete\")\r\n\r\n        # ContextMenu items are NOT in the Window's name scope —\r\n        # walk the Items collection manually\r\n        self.mi_new      = None\r\n        self.mi_del_rule = None\r\n        ctx = self.dg.ContextMenu\r\n        if ctx:\r\n            for item in ctx.Items:\r\n                if isinstance(item, MenuItem):\r\n                    hdr = str(item.Header) if item.Header is not None else \"\"\r\n                    if \"New Rule\" in hdr:\r\n                        self.mi_new = item\r\n                    elif \"Delete selected Rules\" in hdr:\r\n                        self.mi_del_rule = item\r\n\r\n    # ── DataGrid columns ──────────────────────────────────\r\n    def _setup_columns(self):\r\n        # Priority Category — ComboBox\r\n        col1 = DataGridComboBoxColumn()\r\n        col1.Header = \"Priority Category\"\r\n        col1.ItemsSource = NetList[System.String](PRIORITY_CATS)\r\n        col1.SelectedItemBinding = self._make_binding(\"PriorityCategory\")\r\n        col1.Width = DataGridLength(1, DataGridLengthUnitType.Star)\r\n        self.dg.Columns.Add(col1)\r\n\r\n        # Join With Category — ComboBox\r\n        col2 = DataGridComboBoxColumn()\r\n        col2.Header = \"Join With Category\"\r\n        col2.ItemsSource = NetList[System.String](JOIN_WITH_CATS)\r\n        col2.SelectedItemBinding = self._make_binding(\"JoinWithCategory\")\r\n        col2.Width = DataGridLength(1, DataGridLengthUnitType.Star)\r\n        self.dg.Columns.Add(col2)\r\n\r\n        # Reverse — CheckBox\r\n        col3 = DataGridCheckBoxColumn()\r\n        col3.Header = \"Reverse\"\r\n        col3.Binding = self._make_binding(\"Reverse\")\r\n        col3.Width = DataGridLength(75)\r\n        self.dg.Columns.Add(col3)\r\n\r\n        # Bind DataTable DefaultView → DataGrid\r\n        self.dg.ItemsSource = self.table.DefaultView\r\n\r\n    # ── event wiring ──────────────────────────────────────\r\n    def _bind_events(self):\r\n        self.btn_ok.Click  += self._on_ok\r\n        self.btn_imp.Click += self._on_import\r\n        self.btn_exp.Click += self._on_export\r\n        self.btn_add.Click += self._on_add_rule\r\n        self.btn_del.Click += self._on_delete_rule\r\n        if self.mi_new:\r\n            self.mi_new.Click += self._on_ctx_new\r\n        if self.mi_del_rule:\r\n            self.mi_del_rule.Click += self._on_ctx_delete\r\n\r\n    # ── toolbar handlers ──────────────────────────────────\r\n    def _on_add_rule(self, s, e):\r\n        table_add_row(self.table)\r\n        self.dg.Items.Refresh()\r\n\r\n    def _on_delete_rule(self, s, e):\r\n        self._delete_selected_rows()\r\n\r\n    def _on_import(self, s, e):\r\n        dlg = WinForms.OpenFileDialog()\r\n        dlg.Filter = \"JSON files (*.json)|*.json|All files (*.*)|*.*\"\r\n        dlg.Title  = \"Import AutoJoin Rules\"\r\n        if dlg.ShowDialog() != WinForms.DialogResult.OK:\r\n            return\r\n        try:\r\n            with open(dlg.FileName, 'r') as f:\r\n                data = json.load(f)\r\n            rules = data.get(\"rules\", [])\r\n            if not rules:\r\n                MessageBox.Show(u\"File khong chua rules hop le.\",\r\n                                \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n                return\r\n            rules_to_table(rules, self.table)\r\n            self.dg.Items.Refresh()\r\n            MessageBox.Show(\r\n                u\"Da import {} rule(s) tu:\\n{}\".format(len(rules), dlg.FileName),\r\n                \"Import OK\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n        except Exception as ex:\r\n            MessageBox.Show(u\"Loi import:\\n\" + str(ex), \"Error\",\r\n                            MessageBoxButton.OK, MessageBoxImage.Error)\r\n\r\n    def _on_export(self, s, e):\r\n        dlg = WinForms.SaveFileDialog()\r\n        dlg.Filter   = \"JSON files (*.json)|*.json|All files (*.*)|*.*\"\r\n        dlg.FileName = \"AutoJoin_Rules.json\"\r\n        dlg.Title    = \"Export AutoJoin Rules\"\r\n        if dlg.ShowDialog() != WinForms.DialogResult.OK:\r\n            return\r\n        try:\r\n            rules = table_to_rules(self.table)\r\n            with open(dlg.FileName, 'w') as f:\r\n                json.dump({\"version\": \"1.0\", \"rules\": rules},\r\n                          f, indent=2, ensure_ascii=False)\r\n            MessageBox.Show(\r\n                u\"Da luu {} rule(s) vao:\\n{}\".format(len(rules), dlg.FileName),\r\n                \"Export OK\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n        except Exception as ex:\r\n            MessageBox.Show(u\"Loi export:\\n\" + str(ex), \"Error\",\r\n                            MessageBoxButton.OK, MessageBoxImage.Error)\r\n\r\n    # ── context-menu handlers ─────────────────────────────\r\n    def _on_ctx_new(self, s, e):\r\n        \"\"\"Duplicate selected row; if nothing selected → add default row.\"\"\"\r\n        sel = self.dg.SelectedItem\r\n        if sel is not None:\r\n            row = self.table.NewRow()\r\n            row[\"PriorityCategory\"] = sel[\"PriorityCategory\"]\r\n            row[\"JoinWithCategory\"]  = sel[\"JoinWithCategory\"]\r\n            row[\"Reverse\"]           = sel[\"Reverse\"]\r\n            self.table.Rows.Add(row)\r\n        else:\r\n            table_add_row(self.table)\r\n        self.dg.Items.Refresh()\r\n\r\n    def _on_ctx_delete(self, s, e):\r\n        self._delete_selected_rows()\r\n\r\n    def _delete_selected_rows(self):\r\n        items = list(self.dg.SelectedItems)  # snapshot before mutation\r\n        for item in items:\r\n            try:\r\n                item.Row.Delete()\r\n            except Exception:\r\n                pass\r\n        self.table.AcceptChanges()\r\n        self.dg.Items.Refresh()\r\n\r\n    # ── OK ────────────────────────────────────────────────\r\n    def _on_ok(self, s, e):\r\n        rules = table_to_rules(self.table)\r\n        if not rules:\r\n            MessageBox.Show(u\"Vui long them it nhat 1 rule truoc khi chay.\",\r\n                            \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n            return\r\n\r\n        scope     = \"view\" if bool(self.rb_view.IsChecked) else \"selected\"\r\n        do_unjoin = bool(self.chk_un.IsChecked)\r\n        scope_ids = self.preselected_ids if scope == \"selected\" else None\r\n\r\n        if scope == \"selected\" and not scope_ids:\r\n            res = MessageBox.Show(\r\n                u\"Khong co doi tuong nao duoc chon truoc.\\n\"\r\n                u\"Chuyen sang che do 'Tren View' khong?\",\r\n                u\"Xac nhan\", MessageBoxButton.YesNo, MessageBoxImage.Question)\r\n            if res == System.Windows.MessageBoxResult.Yes:\r\n                scope     = \"view\"\r\n                scope_ids = None\r\n            else:\r\n                return\r\n\r\n        self.window.Hide()\r\n        try:\r\n            count, warns = run_autojoin(rules, scope, scope_ids, do_unjoin)\r\n            msg = u\"AutoJoin hoan tat!\\nSo cap da join / chinh thu tu: {}\".format(count)\r\n            if warns:\r\n                msg += u\"\\n\\nCanh bao ({} cap bi bo qua):\".format(len(warns))\r\n                msg += u\"\\n\" + u\"\\n\".join(warns[:6])\r\n                if len(warns) > 6:\r\n                    msg += u\"\\n... va {} loi khac\".format(len(warns) - 6)\r\n            MessageBox.Show(msg, \"AutoJoin\",\r\n                            MessageBoxButton.OK, MessageBoxImage.Information)\r\n        except Exception as ex:\r\n            MessageBox.Show(u\"Loi thuc thi:\\n\" + str(ex), \"Error\",\r\n                            MessageBoxButton.OK, MessageBoxImage.Error)\r\n        finally:\r\n            self.window.Close()\r\n\r\n    def show(self):\r\n        self.window.ShowDialog()\r\n\r\n# ════════════════════════════════════════════════════════\r\n#  ENTRY POINT\r\n# ════════════════════════════════════════════════════════\r\ndef main():\r\n    try:\r\n        sel_ids = list(uidoc.Selection.GetElementIds())\r\n    except Exception:\r\n        sel_ids = []\r\n    AutoJoinWindow(sel_ids).show()\r\n\r\nmain()",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "Name": "Hello World",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 473.52293100415625,
+        "Y": 131.70691563513685
+      },
+      {
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 97.235676123079941,
+        "Y": 133.05673569568208
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "1aa6dfd11cc64f269aac6a608c3df26d",
+        "Title": "@D",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "0122234ee9c249f39aa5138879075566",
+          "5af2b010bc3547cd9e363fbb23363d62"
+        ],
+        "HasNestedGroups": false,
+        "Left": 87.235676123079941,
+        "Top": 59.306915635136853,
+        "Width": 561.08725488107643,
+        "Height": 205.8,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 131.70691563513685,
+        "InitialHeight": 146.34982006054523,
+        "TextblockHeight": 62.4,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": 66.320928429214746,
+    "Y": 76.59637572403409,
+    "Zoom": 0.78436932804482706
+  }
+}

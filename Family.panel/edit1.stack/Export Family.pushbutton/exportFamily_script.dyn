@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "exportFamily_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport os\r\nimport time\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB import SaveAsOptions\r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB.Plumbing import*\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\"\"\"_______________________________________________________________________________________\"\"\"\r\ndoc   = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp   = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview  = doc.ActiveView\r\n\r\n#region__wrapper\r\nclass FamilySymbolWrapper(object):\r\n    def __init__(self, symbol):\r\n        self.Symbol = symbol\r\n        try:\r\n            family_name = symbol.Family.Name\r\n        except:\r\n            family_name = \"\"\r\n        try:\r\n            type_name = symbol.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()\r\n        except:\r\n            try:\r\n                type_name = symbol.Name\r\n            except:\r\n                type_name = \"\"\r\n        if family_name and type_name:\r\n            self.Name = \"{} : {}\".format(family_name, type_name)\r\n        elif family_name:\r\n            self.Name = family_name\r\n        elif type_name:\r\n            self.Name = type_name\r\n        else:\r\n            self.Name = \"ID_{}\".format(symbol.Id.IntegerValue)\r\n    def __str__(self):\r\n        return self.Name\r\n#endregion\r\n\r\n#region__function\r\ndef getAllPipeFittingsInPJ(doc):\r\n    collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeFitting).WhereElementIsElementType().ToElements()\r\n    result = []\r\n    for f in collector:\r\n        try:\r\n            result.append(FamilySymbolWrapper(f))\r\n        except:\r\n            pass\r\n    return result\r\n\r\ndef getAllPipeAccessoriesInPJ(doc):\r\n    collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).WhereElementIsElementType().ToElements()\r\n    result = []\r\n    for a in collector:\r\n        try:\r\n            result.append(FamilySymbolWrapper(a))\r\n        except:\r\n            pass\r\n    return result\r\n\r\ndef getAllGenericModelInPJ(doc):\r\n    collector = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsElementType().ToElements()\r\n    result = []\r\n    for g in collector:\r\n        try:\r\n            result.append(FamilySymbolWrapper(g))\r\n        except:\r\n            pass\r\n    return result\r\n\r\ndef setHorizontalExtent(clb):\r\n    max_width = 0\r\n    font      = clb.Font\r\n    graphics  = clb.CreateGraphics()\r\n    for i in range(clb.Items.Count):\r\n        item_text  = str(clb.Items[i].Name) if hasattr(clb.Items[i], 'Name') else str(clb.Items[i])\r\n        text_width = int(graphics.MeasureString(item_text, font).Width) + 20\r\n        if text_width > max_width:\r\n            max_width = text_width\r\n    graphics.Dispose()\r\n    clb.HorizontalExtent = max_width\r\n#endregion\r\n\r\npipeFittingsCollector    = getAllPipeFittingsInPJ(doc)\r\npipeAccessoriesCollector = getAllPipeAccessoriesInPJ(doc)\r\ngenericModelCollector    = getAllGenericModelInPJ(doc)\r\n\r\n#region__UI\r\nclass MainForm(Form):\r\n\tdef __init__(self):\r\n\t\tself._lastClickIndex_pipeFittings    = -1\r\n\t\tself._lastClickIndex_pipeAccessories = -1\r\n\t\tself._lastClickIndex_genericModels   = -1\r\n\t\tself._isExporting                    = False\r\n\t\tself._cancelRequested                = False\r\n\t\tself.InitializeComponent()\r\n\r\n\tdef InitializeComponent(self):\r\n\t\tself._grb_exportFamily        = System.Windows.Forms.GroupBox()\r\n\t\tself._clb_pipeFittings        = System.Windows.Forms.CheckedListBox()\r\n\t\tself._clb_PipeAccessories     = System.Windows.Forms.CheckedListBox()\r\n\t\tself._clb_GenericModels       = System.Windows.Forms.CheckedListBox()\r\n\t\tself._lb_FVC                  = System.Windows.Forms.Label()\r\n\t\tself._btt_EXPORT              = System.Windows.Forms.Button()\r\n\t\tself._btt_CANCLE              = System.Windows.Forms.Button()\r\n\t\tself._grb_DirectFolderLink    = System.Windows.Forms.GroupBox()\r\n\t\tself._btt_selectFolder        = System.Windows.Forms.Button()\r\n\t\tself._txb_folder              = System.Windows.Forms.TextBox()\r\n\t\tself._lb_pipeFittings         = System.Windows.Forms.Label()\r\n\t\tself._lb_pipeAccessories      = System.Windows.Forms.Label()\r\n\t\tself._lb_genericModel         = System.Windows.Forms.Label()\r\n\t\tself._lb_status               = System.Windows.Forms.Label()\r\n\t\tself._progressBar             = System.Windows.Forms.ProgressBar()\r\n\t\tself._grb_exportFamily.SuspendLayout()\r\n\t\tself._grb_DirectFolderLink.SuspendLayout()\r\n\t\tself.SuspendLayout()\r\n\t\t# \r\n\t\t# grb_exportFamily\r\n\t\t# \r\n\t\tself._grb_exportFamily.Controls.Add(self._lb_genericModel)\r\n\t\tself._grb_exportFamily.Controls.Add(self._lb_pipeAccessories)\r\n\t\tself._grb_exportFamily.Controls.Add(self._lb_pipeFittings)\r\n\t\tself._grb_exportFamily.Controls.Add(self._clb_GenericModels)\r\n\t\tself._grb_exportFamily.Controls.Add(self._clb_PipeAccessories)\r\n\t\tself._grb_exportFamily.Controls.Add(self._clb_pipeFittings)\r\n\t\tself._grb_exportFamily.Font        = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 0)\r\n\t\tself._grb_exportFamily.ForeColor   = System.Drawing.Color.Red\r\n\t\tself._grb_exportFamily.Location    = System.Drawing.Point(12, 21)\r\n\t\tself._grb_exportFamily.Name        = \"grb_exportFamily\"\r\n\t\tself._grb_exportFamily.Size        = System.Drawing.Size(576, 209)\r\n\t\tself._grb_exportFamily.TabIndex    = 0\r\n\t\tself._grb_exportFamily.TabStop     = False\r\n\t\tself._grb_exportFamily.Text        = \"Family\"\r\n\t\t# \r\n\t\t# clb_pipeFittings\r\n\t\t# \r\n\t\tself._clb_pipeFittings.DisplayMember      = 'Name'\r\n\t\tself._clb_pipeFittings.CheckOnClick        = False          # Shift+Click tự quản lý\r\n\t\tself._clb_pipeFittings.HorizontalScrollbar = True\r\n\t\tself._clb_pipeFittings.Font                = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._clb_pipeFittings.ForeColor           = System.Drawing.Color.Blue\r\n\t\tself._clb_pipeFittings.FormattingEnabled   = True\r\n\t\tself._clb_pipeFittings.Location            = System.Drawing.Point(6, 52)\r\n\t\tself._clb_pipeFittings.Name                = \"clb_pipeFittings\"\r\n\t\tself._clb_pipeFittings.Size                = System.Drawing.Size(182, 124)\r\n\t\tself._clb_pipeFittings.TabIndex            = 0\r\n\t\tself._clb_pipeFittings.Items.AddRange(System.Array[System.Object](pipeFittingsCollector))\r\n\t\tself._clb_pipeFittings.MouseDown          += self.clb_pipeFittings_MouseDown\r\n\t\t# \r\n\t\t# clb_PipeAccessories\r\n\t\t# \r\n\t\tself._clb_PipeAccessories.DisplayMember      = 'Name'\r\n\t\tself._clb_PipeAccessories.CheckOnClick        = False\r\n\t\tself._clb_PipeAccessories.HorizontalScrollbar = True\r\n\t\tself._clb_PipeAccessories.Font                = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._clb_PipeAccessories.ForeColor           = System.Drawing.Color.Black\r\n\t\tself._clb_PipeAccessories.FormattingEnabled   = True\r\n\t\tself._clb_PipeAccessories.Location            = System.Drawing.Point(194, 52)\r\n\t\tself._clb_PipeAccessories.Name                = \"clb_PipeAccessories\"\r\n\t\tself._clb_PipeAccessories.Size                = System.Drawing.Size(182, 124)\r\n\t\tself._clb_PipeAccessories.TabIndex            = 1\r\n\t\tself._clb_PipeAccessories.Items.AddRange(System.Array[System.Object](pipeAccessoriesCollector))\r\n\t\tself._clb_PipeAccessories.MouseDown          += self.clb_PipeAccessories_MouseDown\r\n\t\t# \r\n\t\t# clb_GenericModels\r\n\t\t# \r\n\t\tself._clb_GenericModels.DisplayMember      = 'Name'\r\n\t\tself._clb_GenericModels.CheckOnClick        = False\r\n\t\tself._clb_GenericModels.HorizontalScrollbar = True\r\n\t\tself._clb_GenericModels.Font                = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._clb_GenericModels.ForeColor           = System.Drawing.Color.Green\r\n\t\tself._clb_GenericModels.FormattingEnabled   = True\r\n\t\tself._clb_GenericModels.Location            = System.Drawing.Point(382, 52)\r\n\t\tself._clb_GenericModels.Name                = \"clb_GenericModels\"\r\n\t\tself._clb_GenericModels.Size                = System.Drawing.Size(182, 124)\r\n\t\tself._clb_GenericModels.TabIndex            = 1\r\n\t\tself._clb_GenericModels.Items.AddRange(System.Array[System.Object](genericModelCollector))\r\n\t\tself._clb_GenericModels.MouseDown          += self.clb_GenericModels_MouseDown\r\n\t\t# \r\n\t\t# lb_FVC\r\n\t\t# \r\n\t\tself._lb_FVC.Font      = System.Drawing.Font(\"Meiryo UI\", 4.8, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._lb_FVC.ForeColor = System.Drawing.Color.Black\r\n\t\tself._lb_FVC.Location  = System.Drawing.Point(18, 370)\r\n\t\tself._lb_FVC.Name      = \"lb_FVC\"\r\n\t\tself._lb_FVC.Size      = System.Drawing.Size(48, 16)\r\n\t\tself._lb_FVC.TabIndex  = 1\r\n\t\tself._lb_FVC.Text      = \"@FVC\"\r\n\t\t# \r\n\t\t# btt_EXPORT\r\n\t\t# \r\n\t\tself._btt_EXPORT.Font                    = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._btt_EXPORT.ForeColor               = System.Drawing.Color.Red\r\n\t\tself._btt_EXPORT.Location                = System.Drawing.Point(399, 338)\r\n\t\tself._btt_EXPORT.Name                    = \"btt_EXPORT\"\r\n\t\tself._btt_EXPORT.Size                    = System.Drawing.Size(85, 45)\r\n\t\tself._btt_EXPORT.TabIndex                = 2\r\n\t\tself._btt_EXPORT.Text                    = \"EXPORT\"\r\n\t\tself._btt_EXPORT.UseVisualStyleBackColor = True\r\n\t\tself._btt_EXPORT.Click                  += self.Btt_EXPORTClick\r\n\t\t# \r\n\t\t# btt_CANCLE\r\n\t\t# \r\n\t\tself._btt_CANCLE.Font                    = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._btt_CANCLE.ForeColor               = System.Drawing.Color.Red\r\n\t\tself._btt_CANCLE.Location                = System.Drawing.Point(490, 338)\r\n\t\tself._btt_CANCLE.Name                    = \"btt_CANCLE\"\r\n\t\tself._btt_CANCLE.Size                    = System.Drawing.Size(85, 45)\r\n\t\tself._btt_CANCLE.TabIndex                = 2\r\n\t\tself._btt_CANCLE.Text                    = \"CANCLE\"\r\n\t\tself._btt_CANCLE.UseVisualStyleBackColor = True\r\n\t\tself._btt_CANCLE.Click                  += self.Btt_CANCLEClick\r\n\t\t# \r\n\t\t# grb_DirectFolderLink\r\n\t\t# \r\n\t\tself._grb_DirectFolderLink.Controls.Add(self._txb_folder)\r\n\t\tself._grb_DirectFolderLink.Controls.Add(self._btt_selectFolder)\r\n\t\tself._grb_DirectFolderLink.Font      = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._grb_DirectFolderLink.ForeColor = System.Drawing.Color.Red\r\n\t\tself._grb_DirectFolderLink.Location  = System.Drawing.Point(12, 236)\r\n\t\tself._grb_DirectFolderLink.Name      = \"grb_DirectFolderLink\"\r\n\t\tself._grb_DirectFolderLink.Size      = System.Drawing.Size(573, 53)\r\n\t\tself._grb_DirectFolderLink.TabIndex  = 3\r\n\t\tself._grb_DirectFolderLink.TabStop   = False\r\n\t\tself._grb_DirectFolderLink.Text      = \"Folder\"\r\n\t\t# \r\n\t\t# btt_selectFolder\r\n\t\t# \r\n\t\tself._btt_selectFolder.Font                    = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._btt_selectFolder.ForeColor               = System.Drawing.Color.Blue\r\n\t\tself._btt_selectFolder.Location                = System.Drawing.Point(6, 24)\r\n\t\tself._btt_selectFolder.Name                    = \"btt_selectFolder\"\r\n\t\tself._btt_selectFolder.Size                    = System.Drawing.Size(86, 23)\r\n\t\tself._btt_selectFolder.TabIndex                = 0\r\n\t\tself._btt_selectFolder.Text                    = \"Select Folder\"\r\n\t\tself._btt_selectFolder.UseVisualStyleBackColor = True\r\n\t\tself._btt_selectFolder.Click                  += self.Btt_selectFolderClick\r\n\t\t# \r\n\t\t# txb_folder\r\n\t\t# \r\n\t\tself._txb_folder.Font        = System.Drawing.Font(\"Meiryo UI\", 7.8, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._txb_folder.Location    = System.Drawing.Point(99, 21)\r\n\t\tself._txb_folder.Name        = \"txb_folder\"\r\n\t\tself._txb_folder.Size        = System.Drawing.Size(465, 24)\r\n\t\tself._txb_folder.TabIndex    = 1\r\n\t\tself._txb_folder.TextChanged += self.Txb_folderTextChanged\r\n\t\t# \r\n\t\t# lb_pipeFittings\r\n\t\t# \r\n\t\tself._lb_pipeFittings.Font      = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._lb_pipeFittings.ForeColor = System.Drawing.Color.Black\r\n\t\tself._lb_pipeFittings.Location  = System.Drawing.Point(6, 33)\r\n\t\tself._lb_pipeFittings.Name      = \"lb_pipeFittings\"\r\n\t\tself._lb_pipeFittings.Size      = System.Drawing.Size(168, 16)\r\n\t\tself._lb_pipeFittings.TabIndex  = 4\r\n\t\tself._lb_pipeFittings.Text      = \"Pipe Fittings\"\r\n\t\t# \r\n\t\t# lb_pipeAccessories\r\n\t\t# \r\n\t\tself._lb_pipeAccessories.Font      = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._lb_pipeAccessories.ForeColor = System.Drawing.Color.Black\r\n\t\tself._lb_pipeAccessories.Location  = System.Drawing.Point(194, 33)\r\n\t\tself._lb_pipeAccessories.Name      = \"lb_pipeAccessories\"\r\n\t\tself._lb_pipeAccessories.Size      = System.Drawing.Size(168, 16)\r\n\t\tself._lb_pipeAccessories.TabIndex  = 4\r\n\t\tself._lb_pipeAccessories.Text      = \"Pipe Accessories\"\r\n\t\t# \r\n\t\t# lb_genericModel\r\n\t\t# \r\n\t\tself._lb_genericModel.Font      = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._lb_genericModel.ForeColor = System.Drawing.Color.Black\r\n\t\tself._lb_genericModel.Location  = System.Drawing.Point(382, 33)\r\n\t\tself._lb_genericModel.Name      = \"lb_genericModel\"\r\n\t\tself._lb_genericModel.Size      = System.Drawing.Size(168, 16)\r\n\t\tself._lb_genericModel.TabIndex  = 4\r\n\t\tself._lb_genericModel.Text      = \"Generic Models\"\r\n\t\t#\r\n\t\t# lb_status\r\n\t\t#\r\n\t\tself._lb_status.Font      = System.Drawing.Font(\"Meiryo UI\", 7, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._lb_status.ForeColor = System.Drawing.Color.Gray\r\n\t\tself._lb_status.Location  = System.Drawing.Point(12, 298)\r\n\t\tself._lb_status.Name      = \"lb_status\"\r\n\t\tself._lb_status.Size      = System.Drawing.Size(573, 16)\r\n\t\tself._lb_status.TabIndex  = 5\r\n\t\tself._lb_status.Text      = \"Ready\"\r\n\t\t#\r\n\t\t# progressBar\r\n\t\t#\r\n\t\tself._progressBar.Location = System.Drawing.Point(12, 316)\r\n\t\tself._progressBar.Name     = \"progressBar\"\r\n\t\tself._progressBar.Size     = System.Drawing.Size(573, 14)\r\n\t\tself._progressBar.Minimum  = 0\r\n\t\tself._progressBar.Maximum  = 100\r\n\t\tself._progressBar.Value    = 0\r\n\t\tself._progressBar.Style    = System.Windows.Forms.ProgressBarStyle.Continuous\r\n\t\t# \r\n\t\t# MainForm\r\n\t\t# \r\n\t\tself.ClientSize      = System.Drawing.Size(597, 395)\r\n\t\tself.Controls.Add(self._grb_DirectFolderLink)\r\n\t\tself.Controls.Add(self._btt_CANCLE)\r\n\t\tself.Controls.Add(self._btt_EXPORT)\r\n\t\tself.Controls.Add(self._lb_FVC)\r\n\t\tself.Controls.Add(self._lb_status)\r\n\t\tself.Controls.Add(self._progressBar)\r\n\t\tself.Controls.Add(self._grb_exportFamily)\r\n\t\tself.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n\t\tself.Name            = \"MainForm\"\r\n\t\tself.Text            = \"Export Family\"\r\n\t\tself.TopMost         = True\r\n\t\tself.FormClosing    += self.MainForm_FormClosing\r\n\t\tself._grb_exportFamily.ResumeLayout(False)\r\n\t\tself._grb_DirectFolderLink.ResumeLayout(False)\r\n\t\tself._grb_DirectFolderLink.PerformLayout()\r\n\t\tself.ResumeLayout(False)\r\n\t\tsetHorizontalExtent(self._clb_pipeFittings)\r\n\t\tsetHorizontalExtent(self._clb_PipeAccessories)\r\n\t\tsetHorizontalExtent(self._clb_GenericModels)\r\n#endregion\r\n\r\n#region__binding\r\n\t# ── Shift+Click ──────────────────────────────────────────\r\n\tdef _handleShiftClick(self, clb, e, lastIndexRef):\r\n\t\tindex = clb.IndexFromPoint(e.X, e.Y)\r\n\t\tif index < 0:\r\n\t\t\treturn lastIndexRef\r\n\t\tisShift = (System.Windows.Forms.Control.ModifierKeys == System.Windows.Forms.Keys.Shift)\r\n\t\tif isShift and lastIndexRef >= 0:\r\n\t\t\ttarget_state = clb.GetItemChecked(lastIndexRef)\r\n\t\t\tstart = min(lastIndexRef, index)\r\n\t\t\tend   = max(lastIndexRef, index)\r\n\t\t\tfor i in range(start, end + 1):\r\n\t\t\t\tclb.SetItemChecked(i, target_state)\r\n\t\t\treturn lastIndexRef\r\n\t\telse:\r\n\t\t\tcurrent_state = clb.GetItemChecked(index)\r\n\t\t\tclb.SetItemChecked(index, not current_state)\r\n\t\t\treturn index\r\n\r\n\tdef clb_pipeFittings_MouseDown(self, sender, e):\r\n\t\tself._lastClickIndex_pipeFittings = self._handleShiftClick(\r\n\t\t\tself._clb_pipeFittings, e, self._lastClickIndex_pipeFittings)\r\n\r\n\tdef clb_PipeAccessories_MouseDown(self, sender, e):\r\n\t\tself._lastClickIndex_pipeAccessories = self._handleShiftClick(\r\n\t\t\tself._clb_PipeAccessories, e, self._lastClickIndex_pipeAccessories)\r\n\r\n\tdef clb_GenericModels_MouseDown(self, sender, e):\r\n\t\tself._lastClickIndex_genericModels = self._handleShiftClick(\r\n\t\t\tself._clb_GenericModels, e, self._lastClickIndex_genericModels)\r\n\r\n\tdef Txb_folderTextChanged(self, sender, e):\r\n\t\tpass\r\n\r\n\tdef Btt_selectFolderClick(self, sender, e):\r\n\t\tfileDialog = FolderBrowserDialog()\r\n\t\tif fileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK:\r\n\t\t\tself._txb_folder.Text = fileDialog.SelectedPath\r\n\r\n\t# ── FormClosing: chặn đóng khi đang export ───────────────\r\n\tdef MainForm_FormClosing(self, sender, e):\r\n\t\tif self._isExporting:\r\n\t\t\tresult = MessageBox.Show(\r\n\t\t\t\t\"Export is in progress.\\nDo you want to cancel and stop exporting?\",\r\n\t\t\t\t\"Cancel Export\",\r\n\t\t\t\tMessageBoxButtons.YesNo,\r\n\t\t\t\tMessageBoxIcon.Warning)\r\n\t\t\tif result == System.Windows.Forms.DialogResult.Yes:\r\n\t\t\t\tself._cancelRequested     = True\r\n\t\t\t\tself._lb_status.ForeColor = System.Drawing.Color.OrangeRed\r\n\t\t\t\tself._lb_status.Text      = \"Cancelling... waiting for current family to finish.\"\r\n\t\t\te.Cancel = True  # giữ form, vòng lặp tự đóng sau khi break\r\n\r\n\t# ── EXPORT ───────────────────────────────────────────────\r\n\tdef Btt_EXPORTClick(self, sender, e):\r\n\t\tdirectFolder = self._txb_folder.Text.strip()\r\n\t\tif not directFolder:\r\n\t\t\tMessageBox.Show(\"Please select an output folder first.\",\r\n\t\t\t\t\"No Folder\", MessageBoxButtons.OK, MessageBoxIcon.Warning)\r\n\t\t\treturn\r\n\t\tif not os.path.isdir(directFolder):\r\n\t\t\tMessageBox.Show(\"The selected folder does not exist.\",\r\n\t\t\t\t\"Invalid Folder\", MessageBoxButtons.OK, MessageBoxIcon.Error)\r\n\t\t\treturn\r\n\t\tif self._isExporting:\r\n\t\t\treturn\r\n\r\n\t\t# Thu thập family được chọn (loại trùng lặp bằng Id)\r\n\t\tselectedFamilies = {}\r\n\t\tdef process_items(items):\r\n\t\t\tfor wrapper in items:\r\n\t\t\t\tsymbol = wrapper.Symbol\r\n\t\t\t\tif not isinstance(symbol, FamilySymbol):\r\n\t\t\t\t\tcontinue\r\n\t\t\t\ttry:\r\n\t\t\t\t\tfamily = symbol.Family\r\n\t\t\t\t\tif not family.IsEditable:\r\n\t\t\t\t\t\tcontinue\r\n\t\t\t\t\tfid = family.Id.IntegerValue\r\n\t\t\t\t\tif fid not in selectedFamilies:\r\n\t\t\t\t\t\tselectedFamilies[fid] = family\r\n\t\t\t\texcept:\r\n\t\t\t\t\tpass\r\n\r\n\t\tprocess_items(self._clb_pipeFittings.CheckedItems)\r\n\t\tprocess_items(self._clb_PipeAccessories.CheckedItems)\r\n\t\tprocess_items(self._clb_GenericModels.CheckedItems)\r\n\r\n\t\tfamilies = list(selectedFamilies.values())\r\n\t\tif not families:\r\n\t\t\tMessageBox.Show(\"No families selected.\", \"Empty Selection\",\r\n\t\t\t\tMessageBoxButtons.OK, MessageBoxIcon.Warning)\r\n\t\t\treturn\r\n\r\n\t\t# Reset trạng thái\r\n\t\tself._isExporting         = True\r\n\t\tself._cancelRequested     = False\r\n\t\tself._btt_EXPORT.Enabled  = False\r\n\t\tself._btt_CANCLE.Text     = \"CANCEL\"\r\n\t\tself._btt_CANCLE.ForeColor = System.Drawing.Color.OrangeRed\r\n\t\tself._progressBar.Maximum = len(families)\r\n\t\tself._progressBar.Value   = 0\r\n\r\n\t\tsave_options = SaveAsOptions()\r\n\t\tsave_options.OverwriteExistingFile = True\r\n\r\n\t\tsuccess  = []\r\n\t\tfailed   = []\r\n\t\ttotal    = len(families)\r\n\r\n\t\t# Throttle DoEvents\r\n\t\tDOEVENTS_INTERVAL = 0.3\r\n\t\tlast_doevents     = time.time()\r\n\r\n\t\tfor i, family in enumerate(families):\r\n\t\t\t# Kiểm tra cancel trước mỗi family\r\n\t\t\tif self._cancelRequested:\r\n\t\t\t\tfailed.append(\"Cancelled at {}/{}\".format(i, total))\r\n\t\t\t\tbreak\r\n\r\n\t\t\tfamily_name = \"\"\r\n\t\t\ttry:\r\n\t\t\t\tfamily_name = family.Name\r\n\t\t\t\tfile_path   = os.path.join(directFolder, family_name + \".rfa\")\r\n\t\t\t\tfamily_doc  = doc.EditFamily(family)\r\n\t\t\t\tfamily_doc.SaveAs(file_path, save_options)\r\n\t\t\t\tfamily_doc.Close(False)\r\n\t\t\t\tsuccess.append(family_name)\r\n\t\t\texcept Exception as ex:\r\n\t\t\t\tfailed.append(\"{} → {}\".format(family_name or \"?\", str(ex)))\r\n\r\n\t\t\t# Throttle: cập nhật UI theo interval\r\n\t\t\tnow = time.time()\r\n\t\t\tif now - last_doevents >= DOEVENTS_INTERVAL:\r\n\t\t\t\tself._progressBar.Value   = i + 1\r\n\t\t\t\tself._lb_status.ForeColor = System.Drawing.Color.DarkOrange\r\n\t\t\t\tself._lb_status.Text      = \"[{}/{}] {}\".format(i + 1, total, family_name)\r\n\t\t\t\tSystem.Windows.Forms.Application.DoEvents()\r\n\t\t\t\tlast_doevents = now\r\n\r\n\t\t# Cập nhật lần cuối\r\n\t\tself._progressBar.Value = len(success)\r\n\r\n\t\t# Khôi phục UI\r\n\t\tself._isExporting          = False\r\n\t\tself._cancelRequested      = False\r\n\t\tself._btt_EXPORT.Enabled   = True\r\n\t\tself._btt_CANCLE.Text      = \"CANCLE\"\r\n\t\tself._btt_CANCLE.ForeColor = System.Drawing.Color.Red\r\n\t\tself._btt_CANCLE.Enabled   = True\r\n\r\n\t\t# Hiển thị kết quả\r\n\t\tif failed:\r\n\t\t\tself._lb_status.ForeColor = System.Drawing.Color.OrangeRed\r\n\t\t\tself._lb_status.Text = \"Done — {} exported, {} failed/cancelled.\".format(\r\n\t\t\t\tlen(success), len(failed))\r\n\t\telse:\r\n\t\t\tself._lb_status.ForeColor = System.Drawing.Color.Green\r\n\t\t\tself._lb_status.Text = \"Done — {} families exported successfully!\".format(len(success))\r\n\r\n\t\t# Gỡ FormClosing để có thể đóng bình thường, rồi re-attach\r\n\t\tself.FormClosing -= self.MainForm_FormClosing\r\n\t\tself.FormClosing += self.MainForm_FormClosing\r\n\r\n\t# ── CANCEL / CLOSE ───────────────────────────────────────\r\n\tdef Btt_CANCLEClick(self, sender, e):\r\n\t\tif self._isExporting:\r\n\t\t\tresult = MessageBox.Show(\r\n\t\t\t\t\"Export is in progress.\\nDo you want to cancel and stop exporting?\",\r\n\t\t\t\t\"Cancel Export\",\r\n\t\t\t\tMessageBoxButtons.YesNo,\r\n\t\t\t\tMessageBoxIcon.Warning)\r\n\t\t\tif result == System.Windows.Forms.DialogResult.Yes:\r\n\t\t\t\tself._cancelRequested     = True\r\n\t\t\t\tself._lb_status.ForeColor = System.Drawing.Color.OrangeRed\r\n\t\t\t\tself._lb_status.Text      = \"Cancelling... waiting for current family to finish.\"\r\n\t\t\t\tself._btt_CANCLE.Enabled  = False\r\n\t\telse:\r\n\t\t\tself.FormClosing -= self.MainForm_FormClosing\r\n\t\t\tself.Close()\r\n#endregion\r\n\r\nf = MainForm()\r\nApplication.Run(f)",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "f3c538264226480294276e3767f0d077",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cfcca94380314aa881adc744855ea9b2",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "49197c2ec4c742b7b8d1692cc4325e0a",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "49197c2ec4c742b7b8d1692cc4325e0a",
+      "End": "f3c538264226480294276e3767f0d077",
+      "Id": "2d88770e73a24df5b1adb83520dfacb2",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": null,
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+        "Name": "exportFamily(pipe fittings, accessories and generic models)",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 280.00000000000006,
+        "Y": 158.40000000000006
+      },
+      {
+        "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 39.199999999999989,
+        "Y": 139.20000000000007
+      }
+    ],
+    "Annotations": [],
+    "X": 0.0,
+    "Y": 0.0,
+    "Zoom": 1.0
+  }
+}

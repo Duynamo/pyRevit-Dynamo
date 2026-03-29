@@ -1,0 +1,3 @@
+title: ExportID
+tooltip: Xuất ID của các Elements được chọn đến file Excel, WorkBook có tên "ElementID" Và gồm 2 cột là "No" và "ElementID"
+author: FVC

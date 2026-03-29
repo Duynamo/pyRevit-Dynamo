@@ -1,0 +1,3 @@
+title: Generate Params
+tooltip: Automatically Generate Project Params by import Shared Params from Excel file. Excel Workbook chứa Parameter value cần có tên "Shared Parameter" và cột A chứa giá trị Parameter (Ô A1) cần có tên "Shared Parameters Name"
+author: FVC

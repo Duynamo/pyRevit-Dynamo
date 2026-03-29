@@ -1,0 +1,154 @@
+{
+  "Uuid": "9e365bee-9473-4448-bdeb-84156b52a675",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "connect 2 Per Pipe_script",
+  "ElementResolver": {
+    "ResolutionMap": {
+      "List": {
+        "Key": "List",
+        "Value": "BuiltIn.ds"
+      }
+    }
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "ee6053f8792944ecaefc096d1cad3868",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "d666a807667b44038960eecbad091c33",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import*\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc   = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp   = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview  = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList    \r\ndef projectPointToCurve(mPipe, bPipe):\r\n    mPCurve = mPipe.Location.Curve\r\n    nearestConOfBPipe = closetConn(mPipe, bPipe)\r\n    pMid = mPCurve.Project(nearestConOfBPipe).XYZPoint.ToPoint()\r\n    return pMid\r\ndef NearestConnector(ConnectorSet, curCurve):\r\n    MinLength = float(\"inf\")\r\n    result = None \r\n    for n in ConnectorSet:\r\n        distance = curCurve.Location.Curve.Distance(n.Origin)\r\n        if distance < MinLength:\r\n            MinLength = distance\r\n            result = n\r\n    return result\r\ndef closetConn(mPipe, bPipe):\r\n    connectors1 = list(bPipe.ConnectorManager.Connectors.GetEnumerator())\r\n    Connector1  = NearestConnector(connectors1, mPipe)\r\n    XYZconn     = Connector1.Origin\r\n    return XYZconn\r\ndef pullPointToOxy(XYZpoint):\r\n    newPoint = XYZ(XYZpoint.X, XYZpoint.Y, 0)\r\n    return newPoint\r\ndef pullPipeToOxy(pipe):\r\n    pCurve     = pipe.Location.Curve\r\n    startPoint = pCurve.GetEndPoint(0)\r\n    endPoint   = pCurve.GetEndPoint(1)\r\n    oxySP      = pullPointToOxy(startPoint)\r\n    oxyEP      = pullPointToOxy(endPoint)\r\n    oxyCurve   = Line.CreateBound(oxySP, oxyEP)\r\n    return oxyCurve\r\ndef sortNFConn_bPipe(mPipe, bPipe):\r\n    tmp1     = []\r\n    connList = list(bPipe.ConnectorManager.Connectors.GetEnumerator())\r\n    nearConn = NearestConnector(connList, mPipe)\r\n    tmp1.append(nearConn)\r\n    tmp1.append([c for c in connList if c != nearConn])\r\n    sortConnList = flatten(tmp1)\r\n    originConns  = flatten([[c.Origin for c in sortConnList]])\r\n    return originConns\t\r\ndef offsetPointAlongVector(point, vector, offsetDistance):\r\n    direction   = vector.Normalize()\r\n    scaledVector = direction.Multiply(offsetDistance)\r\n    offsetPoint  = point.Add(scaledVector)\r\n    return offsetPoint\r\ndef findIntersection(line1, line2):\r\n    intersectionResultArray = clr.Reference[Autodesk.Revit.DB.IntersectionResultArray]()\r\n    result = line1.Intersect(line2, intersectionResultArray)\r\n    if result == SetComparisonResult.Overlap and intersectionResultArray.Size > 0:\r\n        return intersectionResultArray.get_Item(0).XYZPoint\r\n    return None\r\ndef createPlaneContainingLine(line):\r\n    startPoint = line.GetEndPoint(0)\r\n    direction  = line.Direction\r\n    normal     = direction.CrossProduct(XYZ.BasisZ)  \r\n    plane      = Plane.CreateByNormalAndOrigin(normal, startPoint)\r\n    return plane\r\ndef find_intersection(line, plane):\r\n    plane_normal  = plane.Normal\r\n    plane_origin  = plane.Origin\r\n    line_direction = line.Direction\r\n    line_point    = line.GetEndPoint(0)\r\n    dot_product   = plane_normal.DotProduct(line_direction)\r\n    if abs(dot_product) < 1e-9:\r\n        return None\r\n    t = plane_normal.DotProduct(plane_origin - line_point) / dot_product\r\n    return line_point + t * line_direction\r\ndef calculateDistance(pointA, pointB):\r\n    dx = pointA.X - pointB.X\r\n    dy = pointA.Y - pointB.Y\r\n    dz = pointA.Z - pointB.Z\r\n    return math.sqrt(dx**2 + dy**2 + dz**2)\r\ndef pipeCreateFromPoints(desPointsList, sel_pipingSystem, sel_PipeType, sel_Level, diameter):\r\n    lst_Points1 = [i for i in desPointsList]\r\n    lst_Points2 = [i for i in desPointsList[1:]]\r\n    linesList   = []\r\n    for pt1, pt2 in zip(lst_Points1, lst_Points2):\r\n        line = Autodesk.DesignScript.Geometry.Line.ByStartPointEndPoint(pt1, pt2)\r\n        linesList.append(line)\r\n    firstPoint  = [x.StartPoint for x in linesList]\r\n    secondPoint = [x.EndPoint   for x in linesList]\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    pipe = None\r\n    for i, x in enumerate(firstPoint):\r\n        try:\r\n            levelId    = sel_Level.Id\r\n            sysTypeId  = sel_pipingSystem.Id\r\n            pipeTypeId = sel_PipeType.Id\r\n            diam       = diameter\r\n            pipe = Autodesk.Revit.DB.Plumbing.Pipe.Create(\r\n                doc, sysTypeId, pipeTypeId, levelId,\r\n                x.ToXyz(), secondPoint[i].ToXyz())\r\n            param_Diameter = pipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)\r\n            param_Diameter.SetValueString(diam.ToString())\r\n            TransactionManager.Instance.EnsureInTransaction(doc)\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n        except: pass\t\t\t\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return pipe\r\ndef getPipeParameter(p):\r\n    paramDiameter = p.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble() * 304.8\r\n    paramPipeTypeId   = p.GetTypeId()\r\n    paramPipeType     = doc.GetElement(paramPipeTypeId)\r\n    paramPipingSystemId = p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsElementId()\r\n    paramPipingSystem   = doc.GetElement(paramPipingSystemId)\r\n    paramLevelId = p.get_Parameter(BuiltInParameter.RBS_START_LEVEL_PARAM).AsElementId()\r\n    paramLevel   = doc.GetElement(paramLevelId)\r\n    pipingSystemName = paramPipingSystem.LookupParameter(\"System Classification\").AsValueString()\r\n    pipeTypeName     = paramPipeType.LookupParameter(\"Type Name\").AsString()\r\n    return [paramDiameter, paramPipingSystem, paramPipeType, paramLevel], \\\r\n           [paramDiameter, pipingSystemName, pipeTypeName, paramLevel]\r\n\r\ndef createElbowBetweenPipes(doc, pipe1, pipe2):\r\n    \"\"\"\r\n    Tạo elbow giữa 2 pipe, tìm cặp connector gần nhất.\r\n    Trả về fitting hoặc None nếu thất bại.\r\n    \"\"\"\r\n    try:\r\n        conns1 = list(pipe1.ConnectorManager.Connectors.GetEnumerator())\r\n        conns2 = list(pipe2.ConnectorManager.Connectors.GetEnumerator())\r\n        min_dist   = float('inf')\r\n        best_conn1 = None\r\n        best_conn2 = None\r\n        for c1 in conns1:\r\n            for c2 in conns2:\r\n                d = c1.Origin.DistanceTo(c2.Origin)\r\n                if d < min_dist:\r\n                    min_dist   = d\r\n                    best_conn1 = c1\r\n                    best_conn2 = c2\r\n        if best_conn1 is None or best_conn2 is None:\r\n            return None\r\n        if min_dist > 1.0:\r\n            return None\r\n        fitting = doc.Create.NewElbowFitting(best_conn1, best_conn2)\r\n        return fitting\r\n    except Exception as ex:\r\n        return None\r\n\r\ndef find_closest_connector(mainPipe, branchPipe):\r\n    try:\r\n        main_curve        = mainPipe.Location.Curve\r\n        branch_connectors = list(branchPipe.ConnectorManager.Connectors)\r\n        min_distance  = float(\"inf\")\r\n        closest_conn  = None\r\n        closest_xyz   = None\r\n        for conn in branch_connectors:\r\n            if not hasattr(conn, \"Origin\"):\r\n                continue\r\n            projection = main_curve.Project(conn.Origin)\r\n            if projection is None:\r\n                continue\r\n            distance = conn.Origin.DistanceTo(projection.XYZPoint)\r\n            if distance < min_distance:\r\n                min_distance = distance\r\n                closest_conn = conn\r\n                closest_xyz  = conn.Origin       \r\n        return closest_conn, closest_xyz\r\n    except:\r\n        return None, None\r\n\r\ndef calcMidPoint(intersectPoint1, tmpPoint2, mPipeCurve, inAngle):\r\n    \"\"\"\r\n    Tính midPoint trên đường vuông góc với ống chính từ intersectPoint1,\r\n    sao cho pipe từ midPoint đến tmpPoint2 có góc = inAngle so với ống chính.\r\n\r\n    Sơ đồ:\r\n        intersectPoint1 ---[perp pipe 90 deg]---> midPoint\r\n                                                      |\r\n                                              [angled pipe @ inAngle]\r\n                                                      |\r\n                                                  tmpPoint2 (bPipe connector)\r\n    \"\"\"\r\n    main_dir_n   = mPipeCurve.Direction.Normalize()\r\n    total_vec    = tmpPoint2 - intersectPoint1\r\n\r\n    # Phân tích thành thành phần song song và vuông góc với ống chính\r\n    along_scalar  = total_vec.DotProduct(main_dir_n)\r\n    along_vec     = main_dir_n.Multiply(along_scalar)\r\n    perp_vec_raw  = total_vec - along_vec\r\n    perp_len      = perp_vec_raw.GetLength()\r\n\r\n    if perp_len < 1e-6:\r\n        # tmpPoint2 nằm trên trục ống chính, không có thành phần vuông góc\r\n        return intersectPoint1, False\r\n\r\n    perp_n_local = perp_vec_raw.Normalize()\r\n\r\n    if inAngle >= 90 or abs(along_scalar) < 1e-6:\r\n        # Góc 90 deg: toàn bộ là đoạn vuông góc, không cần pipe góc\r\n        return intersectPoint1.Add(perp_n_local.Multiply(perp_len)), False\r\n\r\n    # Tính L1: độ dài đoạn vuông góc\r\n    # Từ midPoint đến tmpPoint2 phải tạo góc inAngle so với ống chính:\r\n    #   tan(inAngle) = (perp_len - L1) / |along_scalar|\r\n    #   => L1 = perp_len - |along_scalar| * tan(inAngle)\r\n    theta_rad = math.radians(inAngle)\r\n    L1        = perp_len - abs(along_scalar) * math.tan(theta_rad)\r\n\r\n    # Đảm bảo L1 > 0 và đủ dài để tạo pipe hợp lệ (min 0.05 ft)\r\n    MIN_PIPE_LEN = 0.05\r\n    if L1 < MIN_PIPE_LEN:\r\n        L1 = MIN_PIPE_LEN\r\n\r\n    midPoint   = intersectPoint1.Add(perp_n_local.Multiply(L1))\r\n    need_angle = midPoint.DistanceTo(tmpPoint2) > MIN_PIPE_LEN\r\n    return midPoint, need_angle\r\n#endregion\r\n\r\n#region ___input: Pick pipes\r\nmPipe = pickPipe() if 'pickPipe' in dir() else None\r\n\r\nclass selectionFilter(ISelectionFilter):\r\n    def __init__(self, category):\r\n        self.category = category\r\n    def AllowElement(self, element):\r\n        return element.Category.Name == self.category\r\n\r\ndef pickPipe():\r\n    pipeFilter = selectionFilter('Pipes')\r\n    pipeRef    = uidoc.Selection.PickObject(\r\n        Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter)\r\n    return doc.GetElement(pipeRef.ElementId)\r\n\r\nmPipe = pickPipe()\r\nbPipe = pickPipe()\r\n#endregion\r\n\r\n#region ___input: Angle UI\r\nclass MyForm(Form):\r\n    def __init__(self):\r\n        primary_screen = Screen.PrimaryScreen.WorkingArea\r\n        screen_width   = primary_screen.Width  // 5\r\n        screen_height  = primary_screen.Height // 6\r\n        self.Text        = ''\r\n        self.ClientSize  = Size(screen_width, screen_height)\r\n        self.Font        = System.Drawing.Font(\r\n            \"Meiryo UI\", 7.5, System.Drawing.FontStyle.Bold,\r\n            System.Drawing.GraphicsUnit.Point, 128)\r\n        self.ForeColor   = System.Drawing.Color.Red\r\n\r\n        self.label      = Label()\r\n        self.label.Text = \"ANGLE (degrees)\"\r\n        self.label.Size = Size(screen_width // 2, 50)\r\n        self.label.Location = Point(20, 20)\r\n        self.Controls.Add(self.label)\r\n\r\n        self.textBox          = TextBox()\r\n        self.textBox.Location = Point(30, 70)\r\n        self.textBox.Size     = Size(int(screen_width // 1.1), 200)\r\n        self.textBox.KeyDown += self.textBox_KeyDown\r\n        self.Controls.Add(self.textBox)\r\n\r\n        self.okButton          = Button()\r\n        self.okButton.Text     = 'OK'\r\n        self.okButton.Size     = Size(150, 40)\r\n        self.okButton.Location = Point(screen_width - 350, screen_height - 70)\r\n        self.okButton.Click   += self.okButton_Click\r\n        self.Controls.Add(self.okButton)\r\n\r\n        self.cancelButton          = Button()\r\n        self.cancelButton.Text     = 'CANCEL'\r\n        self.cancelButton.Size     = Size(150, 40)\r\n        self.cancelButton.Location = Point(screen_width - 180, screen_height - 70)\r\n        self.cancelButton.Click   += self.cancelButton_Click\r\n        self.Controls.Add(self.cancelButton)\r\n\r\n        self.fvcLabel          = Label()\r\n        self.fvcLabel.Text     = \"@FVC\"\r\n        self.fvcLabel.Size     = Size(150, 40)\r\n        self.fvcLabel.Location = Point(20, screen_height - 50)\r\n        self.Controls.Add(self.fvcLabel)\r\n        self.result = None\r\n\r\n    def textBox_KeyDown(self, sender, event):\r\n        if event.KeyCode == Keys.Enter:\r\n            self.okButton_Click(sender, None)\r\n            event.Handled = True\r\n\r\n    def okButton_Click(self, sender, event):\r\n        self.result       = self.textBox.Text\r\n        self.DialogResult = DialogResult.OK\r\n        self.Close()\r\n\r\n    def cancelButton_Click(self, sender, event):\r\n        self.DialogResult = DialogResult.Cancel\r\n        self.Close()\r\n\r\nform   = MyForm()\r\nresult = form.ShowDialog()\r\nif result == DialogResult.OK:\r\n    text_input = form.result\r\nelse:\r\n    text_input = None\r\n\r\ninAngle = float(text_input)\r\n#endregion\r\n\r\n# ═══════════════════════════════════════════════════════════════\r\n#  MAIN GEOMETRY CALCULATION\r\n# ═══════════════════════════════════════════════════════════════\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\nnearConnOfBP    = closetConn(mPipe, bPipe)\r\nsortNearConnsBP = sortNFConn_bPipe(mPipe, bPipe)\r\n\r\nmPipeCurve    = mPipe.Location.Curve\r\nbPipeCurve    = bPipe.Location.Curve\r\noffsetVector  = sortNearConnsBP[0] - sortNearConnsBP[1]\r\nnewNearConn   = offsetPointAlongVector(sortNearConnsBP[0], offsetVector, 100)\r\n\r\n# Mặt phẳng chứa ống chính\r\ntmpLine       = Line.CreateBound(newNearConn, sortNearConnsBP[0])\r\ntmpPlane      = createPlaneContainingLine(mPipeCurve)\r\nintersectPoint = find_intersection(tmpLine, tmpPlane)\r\n\r\n# Mặt phẳng vuông góc qua ống nhánh\r\ntmpPlane1      = createPlaneContainingLine(tmpLine)\r\nintersectPoint1 = find_intersection(mPipeCurve, tmpPlane1)\r\n\r\n# Khoảng cách giữa 2 giao điểm\r\ndis          = calculateDistance(intersectPoint, intersectPoint1)\r\noffsetVector1 = nearConnOfBP - intersectPoint\r\n\r\n# ── Tính tmpPoint2 theo góc người dùng nhập ───────────────────\r\nif inAngle <= 45:\r\n    angle   = 90 - inAngle\r\n    angRad  = math.radians(angle)\r\n    tmpDis  = dis * math.tan(angRad)\r\n    tmpPoint2 = offsetPointAlongVector(intersectPoint, offsetVector1, tmpDis)\r\nelif inAngle < 90:\r\n    angle   = inAngle\r\n    angRad  = math.radians(angle)\r\n    tmpDis  = dis * math.tan(angRad)\r\n    tmpPoint2 = offsetPointAlongVector(intersectPoint, offsetVector1, tmpDis)\r\nelse:\r\n    tmpPoint2 = intersectPoint\r\n\r\n# ── Di chuyển ống nhánh đến vị trí mới ───────────────────────\r\nif tmpPoint2:\r\n    transVector = tmpPoint2 - sortNearConnsBP[0]\r\n    ElementTransformUtils.MoveElement(doc, bPipe.Id, transVector)\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\n# ═══════════════════════════════════════════════════════════════\r\n#  TÍNH MIDPOINT: điểm nối giữa ống vuông góc và ống góc user\r\n#\r\n#   intersectPoint1 --(perp 90 deg)--> midPoint --(inAngle)--> tmpPoint2\r\n# ═══════════════════════════════════════════════════════════════\r\nmidPoint, need_angle_pipe = calcMidPoint(\r\n    intersectPoint1, tmpPoint2, mPipeCurve, inAngle)\r\n\r\n# ── Lấy thông số ống chính để tạo ống mới ────────────────────\r\nbasePipeParam     = getPipeParameter(mPipe)\r\ndiamParam         = basePipeParam[0][0]\r\npipingSystemParam = basePipeParam[0][1]\r\npipeTypeParam     = basePipeParam[0][2]\r\nlevelParam        = basePipeParam[0][3]\r\n\r\n# ═══════════════════════════════════════════════════════════════\r\n#  BƯỚC 1: Tạo ống vuông góc (90 deg từ ống chính)\r\n#          intersectPoint1 --> midPoint\r\n# ═══════════════════════════════════════════════════════════════\r\npointList_perp = [intersectPoint1.ToPoint(), midPoint.ToPoint()]\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\ntempPipe_perp = pipeCreateFromPoints(\r\n    pointList_perp, pipingSystemParam, pipeTypeParam, levelParam, diamParam)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\n# ═══════════════════════════════════════════════════════════════\r\n#  BƯỚC 2: Tạo ống góc user (inAngle từ ống chính)\r\n#          midPoint --> tmpPoint2\r\n#  Chỉ tạo nếu midPoint khác tmpPoint2\r\n# ═══════════════════════════════════════════════════════════════\r\ntempPipe_angle = None\r\nif need_angle_pipe:\r\n    pointList_angle = [midPoint.ToPoint(), tmpPoint2.ToPoint()]\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    tempPipe_angle = pipeCreateFromPoints(\r\n        pointList_angle, pipingSystemParam, pipeTypeParam, levelParam, diamParam)\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n\r\n# ═══════════════════════════════════════════════════════════════\r\n#  BƯỚC 3: Tạo elbow 90 deg\r\n#          Nối tempPipe_perp -- tempPipe_angle (hoặc bPipe nếu ko có angle pipe)\r\n# ═══════════════════════════════════════════════════════════════\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nif need_angle_pipe and tempPipe_angle is not None:\r\n    # Elbow 90 deg giữa ống vuông góc và ống góc user\r\n    elbow_90 = createElbowBetweenPipes(doc, tempPipe_perp, tempPipe_angle)\r\nelse:\r\n    # Không có ống góc: nối thẳng tempPipe_perp với bPipe\r\n    elbow_90 = createElbowBetweenPipes(doc, tempPipe_perp, bPipe)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\n# ═══════════════════════════════════════════════════════════════\r\n#  BƯỚC 4: Tạo elbow góc user\r\n#          Nối tempPipe_angle -- bPipe\r\n# ═══════════════════════════════════════════════════════════════\r\nif need_angle_pipe and tempPipe_angle is not None:\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    elbow_user = createElbowBetweenPipes(doc, tempPipe_angle, bPipe)\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n\r\n# ═══════════════════════════════════════════════════════════════\r\n#  BƯỚC 5: Tạo tee tại ống chính\r\n#          Nối 2 nửa ống chính với tempPipe_perp\r\n# ═══════════════════════════════════════════════════════════════\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\nmPipeConns  = list(mPipe.ConnectorManager.Connectors)\r\n\r\n# Tìm connector của tempPipe_perp gần ống chính nhất\r\nbestConn1   = find_closest_connector(mPipe, tempPipe_perp)\r\nprojection  = mPipeCurve.Project(bestConn1[1])\r\nprojectionPoint = projection.XYZPoint\r\n\r\n# Tạo 2 nửa ống chính\r\nlistPoint1 = [mPipeConns[0].Origin.ToPoint(), projectionPoint.ToPoint()]\r\nlistPoint2 = [mPipeConns[1].Origin.ToPoint(), projectionPoint.ToPoint()]\r\n\r\ntempPipe2 = pipeCreateFromPoints(\r\n    listPoint1, pipingSystemParam, pipeTypeParam, levelParam, diamParam)\r\ntempPipe3 = pipeCreateFromPoints(\r\n    listPoint2, pipingSystemParam, pipeTypeParam, levelParam, diamParam)\r\n\r\n# Tìm connector tại projectionPoint của mỗi nửa\r\ntempPipe2Conns = list(tempPipe2.ConnectorManager.Connectors.GetEnumerator())\r\ntempPipe3Conns = list(tempPipe3.ConnectorManager.Connectors.GetEnumerator())\r\n\r\nconn1 = None\r\nconn2 = None\r\nfor c1 in tempPipe2Conns:\r\n    if c1.Origin.IsAlmostEqualTo(projectionPoint, 0.01):\r\n        conn1 = c1\r\nfor c2 in tempPipe3Conns:\r\n    if c2.Origin.IsAlmostEqualTo(projectionPoint, 0.01):\r\n        conn2 = c2\r\n\r\n# Tạo tee: 2 nửa ống chính + connector của tempPipe_perp\r\nnewTee = doc.Create.NewTeeFitting(conn1, conn2, bestConn1[0])\r\ntry:\r\n    # Đảm bảo tất cả elements mới đã được tạo và connect thành công\r\n    if newTee is not None and tempPipe2 is not None and tempPipe3 is not None:\r\n        # Xóa ống chính gốc\r\n        doc.Delete(mPipe.Id)\r\n        print(\"Đã xóa ống chính gốc thành công.\")\r\n    else:\r\n        print(\"Cảnh báo: Không xóa ống chính vì TEE hoặc pipes mới chưa tạo đúng.\")\r\nexcept Exception as ex:\r\n    print(\"Lỗi khi xóa ống chính: \" + str(ex))\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = 'Done'\r\n",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "fbdb4952990f4350a3154d9d320963e3",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "6ec9f2b95d364822a0659759898d05d8",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "556138f13a1a4bafb1e9c14b6dd1e4e5",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "d666a807667b44038960eecbad091c33",
+      "End": "6ec9f2b95d364822a0659759898d05d8",
+      "Id": "b8ed0abe0a2242d7b8fc6cbef515886c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 10000.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": 74050.0625,
+      "EyeY": 13478.017578125,
+      "EyeZ": 10429.49609375,
+      "LookX": 61735.375,
+      "LookY": -30685.748046875,
+      "LookZ": -3336.51953125,
+      "UpX": 0.24156804382801056,
+      "UpY": 0.97029572725296021,
+      "UpZ": -0.013078117743134499
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "ee6053f8792944ecaefc096d1cad3868",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -916.124202143995,
+        "Y": -211.84013412304284
+      },
+      {
+        "Id": "fbdb4952990f4350a3154d9d320963e3",
+        "Name": "Python Script",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -659.68724099152757,
+        "Y": -213.030060557316
+      }
+    ],
+    "Annotations": [],
+    "X": 1163.4263003403451,
+    "Y": 368.69272435041376,
+    "Zoom": 1.0967659640198035
+  }
+}

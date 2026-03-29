@@ -1,0 +1,1048 @@
+{
+  "Uuid": "9e365bee-9473-4448-bdeb-84156b52a675",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "connect 2 Par Pipe_script",
+  "ElementResolver": {
+    "ResolutionMap": {
+      "List": {
+        "Key": "List",
+        "Value": "BuiltIn.ds"
+      },
+      "Autodesk.Plane.DesignSript": {
+        "Key": "Autodesk.DesignScript.Geometry.Plane",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.Plane": {
+        "Key": "Autodesk.DesignScript.Geometry.Plane",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Geometry.Plane.DesignSript": {
+        "Key": "Autodesk.DesignScript.Geometry.Plane",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.Vector.Reverse": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.Vector": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Geometry.Vector.Reverse": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Vector.Reverse": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Vector": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Geometry.Vector": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      }
+    }
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\n\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import*\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\r\n#Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.SystemAware)\r\n# Create a form\r\nclass MyForm(Form):\r\n    def __init__(self):\r\n        #NOTE: Để tạo UI có kích thước tương đối so với màn hình làm việc\r\n            #  Ta dùng Screen.PrimaryScreen.WorkingArea\r\n        primary_screen = Screen.PrimaryScreen.WorkingArea\r\n        screen_width = primary_screen.Width // 5\r\n        screen_height = primary_screen.Height // 6\r\n        self.Text = ''\r\n        self.ClientSize = Size(screen_width, screen_height)\r\n        self.Font = System.Drawing.Font(\"Meiryo UI\", 7.5, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n        self.ForeColor = System.Drawing.Color.Red     \r\n        # Create and add label\r\n        self.label = Label()\r\n        self.label.Text = \"ANGLE\"\r\n        self.label.Size = Size(screen_width // 2, 50)\r\n        self.label.Location = Point(20, 20)\r\n        self.Controls.Add(self.label)\r\n        # Create and add text box\r\n        self.textBox = TextBox()\r\n        self.textBox.Location = Point(30, 70)\r\n        self.textBox.Size = Size(screen_width // 1.1, 200)\r\n        self.textBox.KeyDown += self.textBox_KeyDown\r\n        self.Controls.Add(self.textBox)\r\n        \r\n        # Create and add OK button\r\n        self.okButton = Button()\r\n        self.okButton.Text = 'OK'\r\n        self.okButton.Size = Size(150,40)\r\n        self.okButton.Location = Point(screen_width - 350, \r\n                                       screen_height - 70)\r\n        self.okButton.Click += self.okButton_Click\r\n        self.Controls.Add(self.okButton)\r\n        # Create and add Cancel button\r\n        self.cancelButton = Button()\r\n        self.cancelButton.Text = 'CANCLE'\r\n        self.cancelButton.Size = Size(150,40)\r\n        self.cancelButton.Location = Point(screen_width - 180, \r\n                                           screen_height - 70)\r\n        self.cancelButton.Click += self.cancelButton_Click\r\n        self.Controls.Add(self.cancelButton)\r\n        self.fvcLabel = Label()\r\n        self.fvcLabel.Text = \"@FVC\"\r\n        self.fvcLabel.Size = Size(150, 40)\r\n        self.fvcLabel.Location = Point(20, screen_height - 50)  # Bottom left corner\r\n        self.Controls.Add(self.fvcLabel)        \r\n        # self.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n        self.result = None\r\n        ###\r\n    def textBox_KeyDown(self, sender, event):\r\n            if event.KeyCode == Keys.Enter:\r\n                self.okButton_Click(sender, None)  # Gọi cùng logic của OK\r\n                event.Handled = True        \r\n    def okButton_Click(self, sender, event):\r\n        self.result = self.textBox.Text\r\n        self.DialogResult = DialogResult.OK\r\n        self.Close()\r\n    def cancelButton_Click(self, sender, event):\r\n        self.DialogResult = DialogResult.Cancel\r\n        self.Close()\r\n# Show the form and get the result\r\nform = MyForm()\r\nresult = form.ShowDialog()\r\n\r\n# Output the result if OK was clicked\r\nif result == DialogResult.OK:\r\n    text_input = form.result\r\nelse:\r\n    text_input = None\r\n\r\nangle = float(text_input)\r\ndesAng = None\r\nif angle <= 45 :\r\n\tdesAng = 90 - angle\r\nelse:\r\n\tdesAng = angle\r\n# Assign the result to Dynamo output\r\nOUT = angle\r\n",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "76b0d55b2ca340b681a45538a37ab555",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "3021641e5e354f61ba0c15d42dfa58fe",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "ddb03bc41d1f4b6982930038b0f34cff",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "Id": "46816fbe75ce42278df8e9bff3102152",
+      "NodeType": "CodeBlockNode",
+      "Inputs": [
+        {
+          "Id": "28b4b189ae4b4353bdc9f2e2866145db",
+          "Name": "data",
+          "Description": "data",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "58dc46e732f34ed59caf9aee026113dc",
+          "Name": "waitfor",
+          "Description": "waitfor",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "64845d9772004ec79b83e81e2f0abcb8",
+          "Name": "",
+          "Description": "Value of expression at line 1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows for DesignScript code to be authored directly",
+      "Code": "[data, waitfor];"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "0bc41d65ec074addbc3f6b176b245414",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "7265ea44c068410096c83df32f823d6d",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\n\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\nfrom Autodesk.Revit.UI.Selection import ObjectType\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef PickObjects():\r\n    ref = uidoc.Selection.PickObject(ObjectType.Element)\r\n    eles =  doc.GetElement(ref.ElementId)\r\n    return  eles\r\n#endregion\r\n\r\n\r\neleList   = uwList(IN[0])\r\n\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = PickObjects()",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "5262a2b5d7af4d379af79be8c40a2a9d",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "994c74ec15d444368364ef9ebf58e0a3",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "53730cada85b469bb1f954d31a4664ac",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "Id": "f859859084fb4d98bb65fe187f70a43c",
+      "NodeType": "CodeBlockNode",
+      "Inputs": [
+        {
+          "Id": "f0b92b63e2cb4d72be71fc2c8dc6b6b1",
+          "Name": "data",
+          "Description": "data",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "90c497ceebb84741a5eddb3114c4a2c5",
+          "Name": "waitfor",
+          "Description": "waitfor",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "b72d3d88fa6d4bc6b6e7f0566d4ac87b",
+          "Name": "",
+          "Description": "Value of expression at line 1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows for DesignScript code to be authored directly",
+      "Code": "[data, waitfor];"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\n\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\nfrom Autodesk.Revit.UI.Selection import ObjectType\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef PickObjects():\r\n    ref = uidoc.Selection.PickObject(ObjectType.Element)\r\n    eles =  doc.GetElement(ref.ElementId)\r\n    return  eles\r\n#endregion\r\n\r\n\r\neleList   = uwList(IN[0])\r\n\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = PickObjects()",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "6710a11f48d343489202cea17ae2ccc5",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "0866ec053963473a970cbe3780d4543f",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "103e731a2f314e06a7cb08c6b4d3615d",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom math import *\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\n    originConns = flatten(tmp2)\r\ndef NearestConnector(ConnectorSet, curCurve):\r\n    MinLength = float(\"inf\")\r\n    result = None  # Initialize result to None\r\n    for n in ConnectorSet:\r\n        distance = curCurve.Location.Curve.Distance(n.Origin)\r\n        if distance < MinLength:\r\n            MinLength = distance\r\n            result = n\r\n    return result    \r\n    \r\ndef closetConn(firstPipe, secondPipe): #return nearest connector of secondPipe to firstPipe\r\n    connectors1 = list(secondPipe.ConnectorManager.Connectors.GetEnumerator())\r\n    Connector1 = NearestConnector(connectors1, firstPipe)\r\n    XYZconn\t= Connector1.Origin\r\n    return XYZconn\r\n    \r\n    \r\ndef sortConnsOf1stPipe_To2ndPipe(firstPipe, secondPipe):\r\n    sortConnList = []\r\n    originConns  = []\r\n    tmp = []\r\n    tmp1 = []\r\n    tmp2 = []\r\n    connList = list(firstPipe.ConnectorManager.Connectors.GetEnumerator())\r\n    nearConn = NearestConnector(connList, secondPipe)\r\n    tmp1.append(nearConn)\r\n    farConn =  [c for c in connList  if c not in tmp1]\r\n    tmp1.append([c for c in connList if c != nearConn])\r\n    sortConnList = flatten(tmp1)\r\n    tmp2.append([c.Origin for c in sortConnList])\r\n    originConns = flatten(tmp2)\r\n    return originConns\r\n\r\ndef pullPointToCurve(mPipe, bPipe):\r\n    mPCurve = mPipe.Location.Curve\r\n    nearestConOfBPipe =  closetConn(mPipe, bPipe)\r\n    pMid = mPCurve.Project(nearestConOfBPipe).XYZPoint\r\n    return pMid\r\ndef calculateDistance(pointA, pointB):\r\n    dx = pointA.X - pointB.X\r\n    dy = pointA.Y - pointB.Y\r\n    dz = pointA.Z - pointB.Z\r\n    distance = math.sqrt(dx**2 + dy**2 + dz**2)\r\n    return distance\r\ndef offsetPointAlongVector(point, vector, offsetDistance):\r\n    direction = vector.Normalize()\r\n    scaledVector = direction.Multiply(offsetDistance)\r\n    offsetPoint = point.Add(scaledVector)\r\n    return offsetPoint\r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList\r\n#endregion\r\nfirstPipe   = UnwrapElement(IN[0])\r\nsecondPipe\t= UnwrapElement(IN[1])\r\ninAngle = UnwrapElement(IN[2])\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nnf_firstPipeConns = sortConnsOf1stPipe_To2ndPipe(firstPipe, secondPipe)\r\nnf_secondPipeConns = sortConnsOf1stPipe_To2ndPipe(secondPipe, firstPipe)\r\n#project near conn of second Pipe to first Pipe\r\n#to ensure can project \r\nsecondPipeCurve = secondPipe.Location.Curve\r\nvector1 = nf_secondPipeConns[0]-nf_secondPipeConns[1]\r\nnew_nearConnOf2ndPipe = offsetPointAlongVector(nf_secondPipeConns[1], vector1, 1000)\r\nline1 = Line.CreateBound(nf_secondPipeConns[1], new_nearConnOf2ndPipe)\r\nprojectPoint = line1.Project(nf_firstPipeConns[0]).XYZPoint\r\n###\r\ndis = calculateDistance(projectPoint, nf_firstPipeConns[0])\r\noffsetVector = nf_secondPipeConns[1] - projectPoint\r\nif inAngle <= 45:\r\n\tangle = 90 - inAngle\r\n\tangRad = math.radians(angle)\r\n\toffsetDis = dis*tan(angRad)\r\n\ttmpPoint = offsetPointAlongVector(projectPoint, offsetVector,offsetDis)\r\nif inAngle > 45 and inAngle <90:\r\n\tangle = inAngle\r\n\tangRad = math.radians(angle)\r\n\toffsetDis = dis*tan(angRad)\r\n\ttmpPoint = offsetPointAlongVector(projectPoint, offsetVector,offsetDis)\r\nif inAngle == 90:\r\n\ttmpPoint = projectPoint\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = [nf_firstPipeConns[0].ToPoint(), tmpPoint.ToPoint()], firstPipe, secondPipe, projectPoint.ToPoint(), nf_secondPipeConns[0]",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "2ea575535184408e9ba08c540e7f0247",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "659f7430da754cc0b4ec5274b170d18e",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "04d2d5c856154eb8ab2f6947fdd406aa",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "fb40d33093284ff7b7e581b4620e5e4c",
+          "Name": "IN[2]",
+          "Description": "Input #2",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "be92919af6b148dc9ff98b86e0d096c3",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nfrom math import *\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef createElbow(doc, pipes):\r\n\tconnectors = []\r\n\telbowList = []\r\n\ttry:\r\n\t\tfor pipe in pipes:\r\n\t\t\tconnectors.append(pipe.ConnectorManager.Connectors)\r\n\texcept:\r\n\t\tpass\r\n\r\n\tTransactionManager.Instance.EnsureInTransaction(doc)\r\n\t\r\n\ttry:\r\n\t\tfor set1, set2 in zip(connectors[:-1], connectors[1:]):\r\n\t\t\tconStart = list(set1)\r\n\t\t\tconEnd = list(set2)\r\n\t\t\td1 = conStart[0].Origin.DistanceTo(conEnd[0].Origin)*conStart[0].Origin.DistanceTo(conEnd[1].Origin)\r\n\t\t\td2 = conStart[1].Origin.DistanceTo(conEnd[0].Origin)*conStart[1].Origin.DistanceTo(conEnd[1].Origin)\r\n\t\t\ti = 0\r\n\t\t\tif d1 > d2:\r\n\t\t\t\ti = 1\r\n\t\r\n\t\t\td3 = conEnd[0].Origin.DistanceTo(conStart[0].Origin)*conEnd[0].Origin.DistanceTo(conStart[1].Origin)\r\n\t\t\td4 = conEnd[1].Origin.DistanceTo(conStart[0].Origin)*conEnd[1].Origin.DistanceTo(conStart[1].Origin)\r\n\t\t\tj = 0\r\n\t\t\tif d3 > d4:\r\n\t\t\t\tj = 1\r\n\t\r\n\t\t\tfitting = doc.Create.NewElbowFitting(conStart[i],conEnd[j])\r\n\t\t\telbowList.append(fitting)\r\n\texcept:\r\n\t\tpass\r\n\r\n\treturn elbowList\r\n#endregion\r\n\r\n\r\npipeList   = uwList(IN[0])\r\n\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nelbow = createElbow(doc, pipeList)\r\n\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = elbow",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "2ac1510bd2934869bd1f42a53ad8f82b",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "dea05e674be540b290d8681f7be899e5",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "9a5ee7951aed43718baacc04b2321ae9",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "Id": "b97906b733aa4154a597645a8dfe5e40",
+      "NodeType": "CodeBlockNode",
+      "Inputs": [
+        {
+          "Id": "68d5f6b848fa4802817f10d42906689d",
+          "Name": "x",
+          "Description": "x",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "7b1bd7f29c6249819b9643c45441207a",
+          "Name": "",
+          "Description": "Value of expression at line 1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows for DesignScript code to be authored directly",
+      "Code": "List.Flatten(x);"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.CreateList, CoreNodeModels",
+      "VariableInputPorts": true,
+      "Id": "49fc953adca64718a6e5baf64a388c1b",
+      "NodeType": "ExtensionNode",
+      "Inputs": [
+        {
+          "Id": "9c1b20364f3d47a1bdc3194a7e7c4df6",
+          "Name": "item0",
+          "Description": "Item Index #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "8b0be2b5b309467dae26fdd2f865f5bd",
+          "Name": "item1",
+          "Description": "Item Index #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "b77c94be745a488ba02831a9a11b7dad",
+          "Name": "item2",
+          "Description": "Item Index #2",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "515a607dc9194f658d72b037036a685a",
+          "Name": "list",
+          "Description": "A list (type: var[]..[])",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Makes a new list from the given inputs"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nfrom math import *\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef pipeCreateFromPoints(desPointsList, sel_pipingSystem, sel_PipeType, sel_Level, diameter):\r\n    lst_Points1 = [i for i in desPointsList]\r\n    lst_Points2 = [i for i in desPointsList[1:]]\r\n    linesList = []\r\n    for pt1, pt2 in zip(lst_Points1,lst_Points2):\r\n        line =  Autodesk.DesignScript.Geometry.Line.ByStartPointEndPoint(pt1,pt2)\r\n        linesList.append(line)\r\n    firstPoint   = [x.StartPoint for x in linesList]\r\n    secondPoint  = [x.EndPoint for x in linesList]\r\n    pipesList = []\r\n    pipesList1 = []\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    for i,x in enumerate(firstPoint):\r\n        try:\r\n            levelId = sel_Level.Id\r\n            sysTypeId = sel_pipingSystem.Id\r\n            pipeTypeId = sel_PipeType.Id\r\n            diam = diameter\r\n            pipe = Autodesk.Revit.DB.Plumbing.Pipe.Create(doc,sysTypeId,pipeTypeId,levelId,x.ToXyz(),secondPoint[i].ToXyz())\r\n            param_Diameter = pipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)\r\n            param_Diameter.SetValueString(diam.ToString())\r\n            TransactionManager.Instance.EnsureInTransaction(doc)\r\n            pipesList.append(pipe.ToDSType(False))\r\n            pipesList1.append(pipe)\r\n            # param_Length.Set()\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n        except:\r\n            pipesList.append(None)\t\t\t\t\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return pipesList\r\n\t\r\ndef getPipeParameter(p):\r\n    paramDiameters = []\r\n    paramPipingSystems = []\r\n    paramLevels = []\r\n    paramPipeTypes = []\r\n\r\n    paramDiameter = p.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble() * 304.8\r\n    \r\n    paramPipeTypeId = p.GetTypeId()\r\n    paramPipeType = doc.GetElement(paramPipeTypeId)\r\n    paramPipeTypes.append(paramPipeType)\r\n    pipeTypeName = paramPipeType.LookupParameter(\"Type Name\").AsString()\r\n\t\r\n    paramPipingSystemId = p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsElementId()\r\n    paramPipingSystem = doc.GetElement(paramPipingSystemId)\r\n    paramPipingSystems.append(paramPipingSystem)\r\n    pipingSystemName = paramPipingSystem.LookupParameter(\"System Classification\").AsValueString()\r\n\r\n    paramLevelId = p.get_Parameter(BuiltInParameter.RBS_START_LEVEL_PARAM).AsElementId()\r\n    paramLevel = doc.GetElement(paramLevelId)\r\n    paramLevels.append(paramLevel)\r\n\r\n    return [paramDiameter, paramPipingSystem, paramPipeType, paramLevel],[paramDiameter,pipingSystemName,pipeTypeName,paramLevel]\r\n    \r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList\r\n#endregion\r\n\r\n\r\npointList   = uwList(IN[0])\r\nbasePipe    = uwList(IN[1])\r\nnearConnOfSecondPipe = UnwrapElement(IN[2])\r\nbPipe = UnwrapElement(IN[3])\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nbasePipeParam = getPipeParameter(basePipe)\r\ndiamParam = basePipeParam[0][0]\r\npipingSystemParam = basePipeParam[0][1]\r\npipeTypeParam = basePipeParam[0][2]\r\nlevelParam = basePipeParam[0][3]\r\ntempPipe = pipeCreateFromPoints(pointList, pipingSystemParam, pipeTypeParam, levelParam, diamParam)\r\nif tempPipe:\r\n\ttransVector = pointList[1].ToRevitType() - nearConnOfSecondPipe.ToRevitType()\r\n\ttransform = Autodesk.Revit.DB.Transform.CreateTranslation(transVector)\r\n\tElementTransformUtils.MoveElement(doc, bPipe.Id, transVector)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = flatten(tempPipe)",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "2c9badd4c5d84ed095662fad608cbffb",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "2828caec6ac7436ca80386db1c66b72e",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "57cf102deb38443a885891c6e1326066",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "3e05a1681f81413ab2c185f58be6113e",
+          "Name": "IN[2]",
+          "Description": "Input #2",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "c13894b16edb402788cc81a314b3d525",
+          "Name": "IN[3]",
+          "Description": "Input #3",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "56a01b36f5bb409eadbbc304a0726ebb",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "Id": "682bbcdec4f14d208c021faaaf9e61db",
+      "NodeType": "CodeBlockNode",
+      "Inputs": [
+        {
+          "Id": "d1587016108b450fbd6d6c43a45837f9",
+          "Name": "points",
+          "Description": "points",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "74a19128b56c41cab0421bf247a25d34",
+          "Name": "mPipe",
+          "Description": "mPipe",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "a376b8a1079149cbace49c474ab5daa2",
+          "Name": "bPipe",
+          "Description": "bPipe",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "0ae81b824b924894b6563ddd1125fbbb",
+          "Name": "nearConnOfSecondPipe",
+          "Description": "nearConnOfSecondPipe",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "713227b427394d8296478490cc26191c",
+          "Name": "",
+          "Description": "Value of expression at line 1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "85cca61e5fff4812baafac17e053d453",
+          "Name": "",
+          "Description": "Value of expression at line 2",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "4657cf1d87bb404d838d7e84660dfbcf",
+          "Name": "",
+          "Description": "Value of expression at line 3",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "e3a15fab13714032b8c1229cbd3e8734",
+          "Name": "",
+          "Description": "Value of expression at line 4",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows for DesignScript code to be authored directly",
+      "Code": "points[0];\nmPipe[1];\nbPipe[2];\nnearConnOfSecondPipe[3];"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "4db2a0fd2df3494b8a1802cebaaa668c",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "bf42b186d31c4da599866e16bb9a62d1",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nfrom math import sin,cos, tan\r\nclr.AddReference(\"ProtoGeometry\")\r\n\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import*\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList    \r\ndef projectPointToCurve(mPipe, bPipe):\r\n    mPCurve = mPipe.Location.Curve\r\n    nearestConOfBPipe =  closetConn(mPipe, bPipe)\r\n    pMid = mPCurve.Project(nearestConOfBPipe).XYZPoint.ToPoint()\r\n    return pMid\r\ndef NearestConnector(ConnectorSet, curCurve):\r\n    MinLength = float(\"inf\")\r\n    result = None \r\n    for n in ConnectorSet:\r\n        distance = curCurve.Location.Curve.Distance(n.Origin)\r\n        if distance < MinLength:\r\n            MinLength = distance\r\n            result = n\r\n    return result\r\ndef closetConn(mPipe, bPipe):\r\n    connectors1 = list(bPipe.ConnectorManager.Connectors.GetEnumerator())\r\n    Connector1 = NearestConnector(connectors1, mPipe)\r\n    XYZconn\t= Connector1.Origin\r\n    return XYZconn\r\ndef pullPointToOxy(XYZpoint):\r\n\tnewPoint = XYZ(XYZpoint.X, XYZpoint.Y, 0)\r\n\treturn newPoint\r\ndef pullPipeToOxy(pipe):\r\n\tpCurve = pipe.Location.Curve\r\n\tstartPoint = pCurve.GetEndPoint(0)\r\n\tendPoint = pCurve.GetEndPoint(1)\r\n\toxySP = pullPointToOxy(startPoint)\r\n\toxyEP = pullPointToOxy(endPoint)\r\n\toxyCurve = Line.CreateBound(oxySP, oxyEP)\r\n\treturn oxyCurve\r\ndef sortNFConn_bPipe(mPipe, bPipe):\r\n    sortConnList = []\r\n    originConns  = []\r\n    tmp = []\r\n    tmp1 = []\r\n    tmp2 = []\r\n    connList = list(bPipe.ConnectorManager.Connectors.GetEnumerator())\r\n    nearConn = NearestConnector(connList, mPipe)\r\n    tmp1.append(nearConn)\r\n    farConn =  [c for c in connList  if c not in tmp1]\r\n    tmp1.append([c for c in connList if c != nearConn])\r\n    sortConnList = flatten(tmp1)\r\n    tmp2.append([c.Origin for c in sortConnList])\r\n    originConns = flatten(tmp2)\r\n    #XYZconn\t= nearConn.Origin\r\n    return originConns\t\r\ndef offsetPointAlongVector(point, vector, offsetDistance):\r\n    direction = vector.Normalize()\r\n    scaledVector = direction.Multiply(offsetDistance)\r\n    offsetPoint = point.Add(scaledVector)\r\n    return offsetPoint\r\ndef findIntersection(line1, line2):\r\n    # Prepare the intersection result array\r\n    intersectionResultArray = clr.Reference[Autodesk.Revit.DB.IntersectionResultArray]()\r\n    # Find the intersection of the two lines\r\n    result = line1.Intersect(line2, intersectionResultArray)\r\n    # Check if the result is an overlap\r\n    if result == SetComparisonResult.Overlap and intersectionResultArray.Size > 0:\r\n        intersectionPoint = intersectionResultArray.get_Item(0).XYZPoint\r\n        return intersectionPoint\r\n    else:\r\n        return None\r\ndef createPlaneContainingLine(line):\r\n    startPoint = line.GetEndPoint(0)\r\n    direction = line.Direction\r\n    normal = direction.CrossProduct(XYZ.BasisZ)  \r\n    plane = Plane.CreateByNormalAndOrigin(normal, startPoint)\r\n    return plane\r\ndef find_intersection(line, plane):\r\n    plane_normal = plane.Normal\r\n    plane_origin = plane.Origin\r\n    line_direction = line.Direction\r\n    line_point = line.GetEndPoint(0)\r\n    # Vector from the plane origin to the line point\r\n    origin_to_point = line_point - plane_origin\r\n    # Dot product of the plane normal and the line direction\r\n    dot_product = plane_normal.DotProduct(line_direction)\r\n    # Check if the line is parallel to the plane\r\n    if abs(dot_product) < 1e-9:\r\n        # The line is parallel to the plane, no intersection\r\n        return None\r\n    # Calculate the parameter t for the line equation\r\n    t = plane_normal.DotProduct(plane_origin - line_point) / dot_product\r\n    # Calculate the intersection point\r\n    intersection_point = line_point + t * line_direction\r\n    return intersection_point\r\ndef calculateDistance(pointA, pointB):\r\n    dx = pointA.X - pointB.X\r\n    dy = pointA.Y - pointB.Y\r\n    dz = pointA.Z - pointB.Z\r\n    distance = math.sqrt(dx**2 + dy**2 + dz**2)\r\n    return distance\r\ndef pipeCreateFromPoints(desPointsList, sel_pipingSystem, sel_PipeType, sel_Level, diameter):\r\n    lst_Points1 = [i for i in desPointsList]\r\n    lst_Points2 = [i for i in desPointsList[1:]]\r\n    linesList = []\r\n    for pt1, pt2 in zip(lst_Points1,lst_Points2):\r\n        line =  Autodesk.DesignScript.Geometry.Line.ByStartPointEndPoint(pt1,pt2)\r\n        linesList.append(line)\r\n    firstPoint   = [x.StartPoint for x in linesList]\r\n    secondPoint  = [x.EndPoint for x in linesList]\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    for i,x in enumerate(firstPoint):\r\n        try:\r\n            levelId = sel_Level.Id\r\n            sysTypeId = sel_pipingSystem.Id\r\n            pipeTypeId = sel_PipeType.Id\r\n            diam = diameter\r\n            pipe = Autodesk.Revit.DB.Plumbing.Pipe.Create(doc,sysTypeId,pipeTypeId,levelId,x.ToXyz(),secondPoint[i].ToXyz())\r\n            param_Diameter = pipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM)\r\n            param_Diameter.SetValueString(diam.ToString())\r\n            TransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\n            # param_Length.Set()\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n        except: pass\t\t\t\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return pipe\r\ndef getPipeParameter(p):\r\n    paramDiameter = p.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble() * 304.8\r\n    \r\n    paramPipeTypeId = p.GetTypeId()\r\n    paramPipeType = doc.GetElement(paramPipeTypeId)\r\n    pipeTypeName = paramPipeType.LookupParameter(\"Type Name\").AsString()\r\n\t\r\n    paramPipingSystemId = p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsElementId()\r\n    paramPipingSystem = doc.GetElement(paramPipingSystemId)\r\n    pipingSystemName = paramPipingSystem.LookupParameter(\"System Classification\").AsValueString()\r\n\r\n    paramLevelId = p.get_Parameter(BuiltInParameter.RBS_START_LEVEL_PARAM).AsElementId()\r\n    paramLevel = doc.GetElement(paramLevelId)\r\n\r\n    return paramPipingSystem, paramPipeType, paramLevel, paramDiameter\r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList\r\ndef createElbow(doc, pipes):\r\n    elbowList = []\r\n    bestConns = []\r\n    if not pipes or len(pipes) < 2:\r\n        return elbowList\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    try:\r\n        # Duyệt qua các cặp pipe liên tiếp\r\n        for pipe1, pipe2 in zip(pipes[:-1], pipes[1:]):\r\n            try:\r\n                # Lấy ConnectorManager của hai pipe\r\n                conn_manager1 = pipe1.ConnectorManager\r\n                conn_manager2 = pipe2.ConnectorManager                \r\n                if not conn_manager1 or not conn_manager2:\r\n                    continue                \r\n                # Lấy tất cả connector\r\n                connectors1 = list(conn_manager1.Connectors)\r\n                connectors2 = list(conn_manager2.Connectors)               \r\n                if len(connectors1) < 1 or len(connectors2) < 1:\r\n                    continue               \r\n                # Tìm cặp connector gần nhất\r\n                min_distance = float('inf')\r\n                best_conn1 = None\r\n                best_conn2 = None               \r\n                for conn1 in connectors1:\r\n                    for conn2 in connectors2:\r\n                        distance = conn1.Origin.DistanceTo(conn2.Origin)\r\n                        if distance < min_distance:\r\n                            min_distance = distance\r\n                            best_conn1 = conn1\r\n                            best_conn2 = conn2\r\n                            bestConns.append(best_conn1)\r\n                            bestConns.append(best_conn2)\r\n\r\n                if best_conn1 is None or best_conn2 is None:\r\n                    continue\r\n                # Kiểm tra khoảng cách hợp lệ (ví dụ: dưới 1 feet)\r\n                if min_distance > 1.0:  # Đơn vị feet\r\n                    continue\r\n                # bestConns.append(best_conn1, best_conn2)\r\n                fitting = doc.Create.NewElbowFitting(best_conn1, best_conn2)\r\n                elbowList.append(fitting)               \r\n            except Exception as e:\r\n                continue\r\n    except Exception as e: pass\r\n    return bestConns\r\n\r\nclass selectionFilter(ISelectionFilter):\r\n    def __init__(self, category):\r\n          self.category = category\r\n    def AllowElement(self, element):\r\n        if element.Category.Name == self.category:\r\n            return True\r\n        else:\r\n            return False\r\ndef pickPipe():\r\n    pipeFilter = selectionFilter('Pipes')\r\n    pipeRef = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter)\r\n    pipe = doc.GetElement(pipeRef.ElementId)\r\n    return pipe\r\ndef find_closest_connector(mainPipe, branchPipe):\r\n    \"\"\"\r\n    Tìm connector gần nhất của ống nhánh đến đường cong của ống chính.\r\n    \r\n    Args:\r\n        mainPipe: Pipe chính (Pipe object)\r\n        branchPipe: Pipe nhánh (Pipe object)\r\n    \r\n    Returns:\r\n        Tuple (Connector, XYZ): Connector gần nhất và tọa độ của nó, hoặc (None, None) nếu lỗi.\r\n    \"\"\"   \r\n    try:\r\n        # Lấy đường cong của ống chính\r\n        main_curve = mainPipe.Location.Curve\r\n        if not main_curve:\r\n            return None, None\r\n        # Lấy connectors của ống nhánh\r\n        branch_connectors = list(branchPipe.ConnectorManager.Connectors)\r\n        if not branch_connectors:\r\n            return None, None        \r\n        # Tìm connector gần nhất\r\n        min_distance = float(\"inf\")\r\n        closest_conn = None\r\n        closest_xyz = None\r\n        for conn in branch_connectors:\r\n            if not hasattr(conn, \"Origin\"):\r\n                continue\r\n            # Chiếu điểm connector lên đường cong ống chính\r\n            projection = main_curve.Project(conn.Origin)\r\n            if projection is None:\r\n                continue\r\n            distance = conn.Origin.DistanceTo(projection.XYZPoint)\r\n            if distance < min_distance:\r\n                min_distance = distance\r\n                closest_conn = conn\r\n                closest_xyz = conn.Origin       \r\n        if closest_conn is None:\r\n            return None, None\r\n        sorted_connectors = [closest_conn]\r\n        for conn in branch_connectors:\r\n            if conn != closest_conn:\r\n                sorted_connectors.append(conn)\r\n                break\r\n        return closest_conn, closest_xyz, sorted_connectors\r\n    except Exception as e:\r\n        return None, None\r\n#endregion\r\n\r\n#region input Value\r\nmPipe   = pickPipe()\r\nbPipe\t= pickPipe()\r\n#endregion\r\n\r\n#region input Angle\r\nclass MyForm(Form):\r\n    def __init__(self):\r\n        #NOTE: Để tạo UI có kích thước tương đối so với màn hình làm việc\r\n            #  Ta dùng Screen.PrimaryScreen.WorkingArea\r\n        primary_screen = Screen.PrimaryScreen.WorkingArea\r\n        screen_width = primary_screen.Width // 5\r\n        screen_height = primary_screen.Height // 6\r\n        self.Text = ''\r\n        self.ClientSize = Size(screen_width, screen_height)\r\n        self.Font = System.Drawing.Font(\"Meiryo UI\", 7.5, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n        self.ForeColor = System.Drawing.Color.Red     \r\n        # Create and add label\r\n        self.label = Label()\r\n        self.label.Text = \"ANGLE\"\r\n        self.label.Size = Size(screen_width // 2, 50)\r\n        self.label.Location = Point(20, 20)\r\n        self.Controls.Add(self.label)\r\n        # Create and add text box\r\n        self.textBox = TextBox()\r\n        self.textBox.Location = Point(30, 70)\r\n        self.textBox.Size = Size(screen_width // 1.1, 200)\r\n        self.textBox.KeyDown += self.textBox_KeyDown\r\n        self.Controls.Add(self.textBox)\r\n        \r\n        # Create and add OK button\r\n        self.okButton = Button()\r\n        self.okButton.Text = 'OK'\r\n        self.okButton.Size = Size(150,40)\r\n        self.okButton.Location = Point(screen_width - 350, \r\n                                       screen_height - 70)\r\n        self.okButton.Click += self.okButton_Click\r\n        self.Controls.Add(self.okButton)\r\n        # Create and add Cancel button\r\n        self.cancelButton = Button()\r\n        self.cancelButton.Text = 'CANCLE'\r\n        self.cancelButton.Size = Size(150,40)\r\n        self.cancelButton.Location = Point(screen_width - 180, \r\n                                           screen_height - 70)\r\n        self.cancelButton.Click += self.cancelButton_Click\r\n        self.Controls.Add(self.cancelButton)\r\n        self.fvcLabel = Label()\r\n        self.fvcLabel.Text = \"@FVC\"\r\n        self.fvcLabel.Size = Size(150, 40)\r\n        self.fvcLabel.Location = Point(20, screen_height - 50)  # Bottom left corner\r\n        self.Controls.Add(self.fvcLabel)        \r\n        # self.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n        self.result = None\r\n        ###\r\n    def textBox_KeyDown(self, sender, event):\r\n            if event.KeyCode == Keys.Enter:\r\n                self.okButton_Click(sender, None)  # Gọi cùng logic của OK\r\n                event.Handled = True        \r\n    def okButton_Click(self, sender, event):\r\n        self.result = self.textBox.Text\r\n        self.DialogResult = DialogResult.OK\r\n        self.Close()\r\n    def cancelButton_Click(self, sender, event):\r\n        self.DialogResult = DialogResult.Cancel\r\n        self.Close()\r\nform = MyForm()\r\nresult = form.ShowDialog()\r\n# Output the result if OK was clicked\r\nif result == DialogResult.OK:\r\n    text_input = form.result\r\nelse:\r\n    text_input = None\r\n###\r\nreturnAngle = float(text_input)\r\n##\r\ninAngle = returnAngle\r\n#endregion\r\n# Do some action in a Transaction\r\n#NOTE: Tại đây ta lấy về XYZ của 2 connector gần nhất của ống nhánh và ống chính\r\nmPipeCurve = mPipe.Location.Curve\r\nbPipeCurve = bPipe.Location.Curve\r\nbestConn_bPipe = find_closest_connector(mPipe, bPipe)[1]\r\nbestConn_mPipe = find_closest_connector(bPipe, mPipe)[1]\r\n#NOTE: Lấy về sorted list conns của mPipe và bPipe\r\nsortedConns_mPipe = find_closest_connector(bPipe, mPipe)[2]\r\nsortedConns_bPipe = find_closest_connector(mPipe, bPipe)[2]\r\n\r\n#NOTE: Scale bPipeCurve để đảm bảo luôn chiếu được bestConn của mPipe lên bPipe\r\ntempPoint_bPipe_offsetVector = sortedConns_bPipe[0].Origin - sortedConns_bPipe[1].Origin\r\ntempPoint_bPipe = offsetPointAlongVector(sortedConns_bPipe[0].Origin, \r\n                                         tempPoint_bPipe_offsetVector,\r\n                                         bPipeCurve.Length)\r\ntempLine = Line.CreateBound(tempPoint_bPipe, sortedConns_bPipe[1].Origin)\r\nprojectPoint = tempLine.Project(bestConn_mPipe).XYZPoint\r\n#NOTE: Tìm điểm chiếu trên bPipe thỏa điều kiện góc nhập vào \r\n#Khoảng cách từ điểm gióng đến best connector main pipe\r\ndis = calculateDistance(projectPoint, bestConn_mPipe) \r\noffsetVector = sortedConns_bPipe[0].Origin - projectPoint\r\nif inAngle <= 45:\r\n\tangle = 90 - inAngle\r\n\tangRad = math.radians(angle)\r\n\toffsetDis = dis*tan(angRad)\r\n\ttmpPoint = offsetPointAlongVector(projectPoint, offsetVector,offsetDis)\r\nif inAngle > 45 and inAngle <90:\r\n\tangle = inAngle\r\n\tangRad = math.radians(angle)\r\n\toffsetDis = dis*tan(angRad)\r\n\ttmpPoint = offsetPointAlongVector(projectPoint, offsetVector,offsetDis)\r\nif inAngle == 90:\r\n\ttmpPoint = projectPoint\r\n\r\n#NOTE: Tại bước trên ta đã tìm được điểm gióng từ nearConn of main pipe lên\r\n#      trên ống branch pipe ứng với góc input do người nhập\r\n#      Ta đi tạo ống temp ở giữa\r\n\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\ntempPipePoints = [bestConn_mPipe.ToPoint(), tmpPoint.ToPoint()]\r\nmPipeParam = getPipeParameter(mPipe)\r\ntempPipe = pipeCreateFromPoints(tempPipePoints, mPipeParam[0],\r\n                                                mPipeParam[1],\r\n                                                mPipeParam[2],\r\n                                                mPipeParam[3])\r\nTransactionManager.Instance.TransactionTaskDone()\r\n#NOTE: Tạo new bPipe\r\nnewListPipe = [mPipe,tempPipe]\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nfarConn_bPipe = sortedConns_bPipe[1].Origin.ToPoint()\r\nnew_bPipe_Points = [farConn_bPipe, tmpPoint.ToPoint()]\r\nnew_bPipe = pipeCreateFromPoints(new_bPipe_Points,\r\n                                 mPipeParam[0],\r\n                                 mPipeParam[1],\r\n                                 mPipeParam[2],\r\n                                 mPipeParam[3])\r\nnewListPipe.append(new_bPipe)\r\ndoc.Delete(bPipe.Id)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n#NOTE: Connect pipes by elbows\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nelbows = createElbow(doc, newListPipe)\r\nTransactionManager.Instance.TransactionTaskDone()\r\nOUT =  'Hello World'",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "d00cc5a3586c4cdd979c3c79efb1ff0c",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "494f5803b81c400f9e757fb3da051f26",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "339e8b42253c4b60905b9e2ffc897fb9",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "ddb03bc41d1f4b6982930038b0f34cff",
+      "End": "fb40d33093284ff7b7e581b4620e5e4c",
+      "Id": "090f8daef50942699102156a9c4a62ed",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "64845d9772004ec79b83e81e2f0abcb8",
+      "End": "3021641e5e354f61ba0c15d42dfa58fe",
+      "Id": "6aaa40108baf416bbb809c938f21235e",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "7265ea44c068410096c83df32f823d6d",
+      "End": "28b4b189ae4b4353bdc9f2e2866145db",
+      "Id": "270d19d9c9a24930b859a127c30ff1d0",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "7265ea44c068410096c83df32f823d6d",
+      "End": "994c74ec15d444368364ef9ebf58e0a3",
+      "Id": "b19cda9585084348941d816da86d6ba8",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "7265ea44c068410096c83df32f823d6d",
+      "End": "f0b92b63e2cb4d72be71fc2c8dc6b6b1",
+      "Id": "a48a4a36f1a642fdb139a9303048a996",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "53730cada85b469bb1f954d31a4664ac",
+      "End": "90c497ceebb84741a5eddb3114c4a2c5",
+      "Id": "11a43d00189844f0863eae1fe7f1f741",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "53730cada85b469bb1f954d31a4664ac",
+      "End": "659f7430da754cc0b4ec5274b170d18e",
+      "Id": "dc26a1857c784d9eaf9b6a23bbbeddb0",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "b72d3d88fa6d4bc6b6e7f0566d4ac87b",
+      "End": "0866ec053963473a970cbe3780d4543f",
+      "Id": "010c1639f85044efabc24cb0e0d30115",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "103e731a2f314e06a7cb08c6b4d3615d",
+      "End": "58dc46e732f34ed59caf9aee026113dc",
+      "Id": "f39619e9476d42ec9c76967aecfec532",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "103e731a2f314e06a7cb08c6b4d3615d",
+      "End": "04d2d5c856154eb8ab2f6947fdd406aa",
+      "Id": "abd4aac15a414628be7799be919976bd",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "be92919af6b148dc9ff98b86e0d096c3",
+      "End": "d1587016108b450fbd6d6c43a45837f9",
+      "Id": "4d0f38175df945c9a764a5556ba283f1",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "be92919af6b148dc9ff98b86e0d096c3",
+      "End": "74a19128b56c41cab0421bf247a25d34",
+      "Id": "63ffbe9b0b31400da0247a46d7a5d2b4",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "be92919af6b148dc9ff98b86e0d096c3",
+      "End": "a376b8a1079149cbace49c474ab5daa2",
+      "Id": "fb136e2788ce4cf393733b00acef1d16",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "be92919af6b148dc9ff98b86e0d096c3",
+      "End": "0ae81b824b924894b6563ddd1125fbbb",
+      "Id": "d3f91ed6049b43d4bfb4d5e28f877476",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "7b1bd7f29c6249819b9643c45441207a",
+      "End": "dea05e674be540b290d8681f7be899e5",
+      "Id": "c5539bc2603c42a7bdcd36a0aa57dac8",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "515a607dc9194f658d72b037036a685a",
+      "End": "68d5f6b848fa4802817f10d42906689d",
+      "Id": "0e42709f144e4f759db786c25144eb3e",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "56a01b36f5bb409eadbbc304a0726ebb",
+      "End": "8b0be2b5b309467dae26fdd2f865f5bd",
+      "Id": "627a37099b4647c4a44e17409d4dcad5",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "713227b427394d8296478490cc26191c",
+      "End": "2828caec6ac7436ca80386db1c66b72e",
+      "Id": "3db0b665096a40f5aedd63efa4045afe",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "85cca61e5fff4812baafac17e053d453",
+      "End": "b77c94be745a488ba02831a9a11b7dad",
+      "Id": "c1735358639348cbac7bb0e173343484",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "85cca61e5fff4812baafac17e053d453",
+      "End": "57cf102deb38443a885891c6e1326066",
+      "Id": "b6bc43b6a007428d8cb54355437b5884",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "4657cf1d87bb404d838d7e84660dfbcf",
+      "End": "9c1b20364f3d47a1bdc3194a7e7c4df6",
+      "Id": "cb34559d68dc4593bddabfd1921baadc",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "4657cf1d87bb404d838d7e84660dfbcf",
+      "End": "c13894b16edb402788cc81a314b3d525",
+      "Id": "bad75a5ea5c043f883c42f59381375cb",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "e3a15fab13714032b8c1229cbd3e8734",
+      "End": "3e05a1681f81413ab2c185f58be6113e",
+      "Id": "1382a3f4c1c4439b9e8d329fb8cbaaee",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "bf42b186d31c4da599866e16bb9a62d1",
+      "End": "494f5803b81c400f9e757fb3da051f26",
+      "Id": "1f973bfd495c4c6f8c0fcc95cd253bee",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 10000.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": 106665.71875,
+      "EyeY": 7260.81591796875,
+      "EyeZ": 3383.6015625,
+      "LookX": 4248.8125,
+      "LookY": -6110.81591796875,
+      "LookZ": 12274.2578125,
+      "UpX": -0.19948841631412506,
+      "UpY": -0.79228949546813965,
+      "UpZ": -0.57661235332489014
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "76b0d55b2ca340b681a45538a37ab555",
+        "Name": "userInputAngle",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -1296.4165657372068,
+        "Y": 3079.3997351424337
+      },
+      {
+        "Id": "46816fbe75ce42278df8e9bff3102152",
+        "Name": "Code Block",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -1650.2143900804938,
+        "Y": 3279.9652138365527
+      },
+      {
+        "Id": "0bc41d65ec074addbc3f6b176b245414",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": true,
+        "ShowGeometry": true,
+        "X": -2306.2455135409659,
+        "Y": 3258.1079828269035
+      },
+      {
+        "Id": "5262a2b5d7af4d379af79be8c40a2a9d",
+        "Name": "pickMainPipe",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -1939.0685484417445,
+        "Y": 3431.6397519329967
+      },
+      {
+        "Id": "f859859084fb4d98bb65fe187f70a43c",
+        "Name": "Code Block",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -2328.53218726176,
+        "Y": 3386.743534931742
+      },
+      {
+        "Id": "6710a11f48d343489202cea17ae2ccc5",
+        "Name": "pickBranchPipe",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -1947.7785217627638,
+        "Y": 3277.4901571569576
+      },
+      {
+        "Id": "2ea575535184408e9ba08c540e7f0247",
+        "Name": "NearFarConns_bP mP",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -978.30018174335578,
+        "Y": 3279.9909943347466
+      },
+      {
+        "Id": "2ac1510bd2934869bd1f42a53ad8f82b",
+        "Name": "connect_tmpPipeAndBranchPipeByElbow",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 325.32287457436826,
+        "Y": 3293.2823896073778
+      },
+      {
+        "Id": "b97906b733aa4154a597645a8dfe5e40",
+        "Name": "Code Block",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 94.638836735769814,
+        "Y": 3298.7192016296876
+      },
+      {
+        "Id": "49fc953adca64718a6e5baf64a388c1b",
+        "Name": "List Create",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -180.52838734657041,
+        "Y": 3274.3659393203375
+      },
+      {
+        "Id": "2c9badd4c5d84ed095662fad608cbffb",
+        "Name": "tmpPipe",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -346.90651836091411,
+        "Y": 3275.3549887256072
+      },
+      {
+        "Id": "682bbcdec4f14d208c021faaaf9e61db",
+        "Name": "Code Block",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -766.63055845506767,
+        "Y": 3277.6535942086184
+      },
+      {
+        "Id": "4db2a0fd2df3494b8a1802cebaaa668c",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -1410.0963738221,
+        "Y": 3699.97628058102
+      },
+      {
+        "Id": "d00cc5a3586c4cdd979c3c79efb1ff0c",
+        "Name": "Python Script",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": -1117.88048334516,
+        "Y": 3692.3419814235253
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "9c9216fd60b646e192b77f245f91b8b7",
+        "Title": "user in put angle",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "76b0d55b2ca340b681a45538a37ab555",
+          "46816fbe75ce42278df8e9bff3102152"
+        ],
+        "HasNestedGroups": false,
+        "Left": -1660.2143900804938,
+        "Top": 3006.1997351424338,
+        "Width": 563.797824343287,
+        "Height": 436.36547869411879,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 3079.3997351424337,
+        "InitialHeight": 345.56547869411907,
+        "TextblockHeight": 63.2,
+        "Background": "#FFFFC999"
+      },
+      {
+        "Id": "4fdd1aa1e0064a02a5350b41f47a277f",
+        "Title": "pick main pipe and branch pipe",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "0bc41d65ec074addbc3f6b176b245414",
+          "5262a2b5d7af4d379af79be8c40a2a9d",
+          "f859859084fb4d98bb65fe187f70a43c",
+          "6710a11f48d343489202cea17ae2ccc5"
+        ],
+        "HasNestedGroups": false,
+        "Left": -2338.53218726176,
+        "Top": 3184.9079828269037,
+        "Width": 588.75366549899627,
+        "Height": 379.33176910609291,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 3258.1079828269035,
+        "InitialHeight": 318.53176910609318,
+        "TextblockHeight": 63.2,
+        "Background": "#FFC1D676"
+      },
+      {
+        "Id": "553c2d52ce33426c96071e91a2712ef5",
+        "Title": "connect pipes by elbow",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "2ac1510bd2934869bd1f42a53ad8f82b",
+          "b97906b733aa4154a597645a8dfe5e40"
+        ],
+        "HasNestedGroups": false,
+        "Left": 84.638836735769814,
+        "Top": 3220.082389607378,
+        "Width": 633.08403783859842,
+        "Height": 210.83681202230946,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 3293.2823896073778,
+        "InitialHeight": 150.43681202230982,
+        "TextblockHeight": 63.2,
+        "Background": "#FF48B9FF"
+      },
+      {
+        "Id": "709202785afd495db99a76c6ecb647ea",
+        "Title": "create tmp Pipe",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "2ea575535184408e9ba08c540e7f0247",
+          "49fc953adca64718a6e5baf64a388c1b",
+          "2c9badd4c5d84ed095662fad608cbffb",
+          "682bbcdec4f14d208c021faaaf9e61db"
+        ],
+        "HasNestedGroups": false,
+        "Left": -988.30018174335578,
+        "Top": 3201.1659393203377,
+        "Width": 978.17179439678534,
+        "Height": 309.48765488828076,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 3274.3659393203375,
+        "InitialHeight": 150.6250550144091,
+        "TextblockHeight": 63.2,
+        "Background": "#FFFF7BAC"
+      }
+    ],
+    "X": 1300.2578280092441,
+    "Y": -2624.1685060590221,
+    "Zoom": 0.75908409517632325
+  }
+}

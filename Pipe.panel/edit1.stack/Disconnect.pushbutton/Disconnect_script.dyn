@@ -1,0 +1,123 @@
+{
+  "Uuid": "4022ac12-e040-4974-a7ef-c80a5390c428",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "Disconnect_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nfrom math import cos,sin,tan,radians\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList\r\nclass PipeSelectionFilter(ISelectionFilter):\r\n    def AllowElement(self, element):\r\n        category = element.Category\r\n        if category is None:\r\n            return False\r\n        return category.Name in [\"Pipes\", \"Pipe Fittings\", \"Pipe Accessories\"]\r\n    def AllowReference(self, reference, position):\r\n        return False\r\n# Pick the element\r\ndef pickElement():\r\n    pipeFilter = PipeSelectionFilter()\r\n    ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter, \"Pick a pipe, fitting, or accessory\")\r\n    element = doc.GetElement(ref.ElementId)\r\n    return element\r\n# Disconnect all connectors of the element\r\ndef findConnectors(element):\r\n    connectors = []\r\n    if element.Category.Name == \"Pipes\":\r\n        connectors = [conn for conn in element.ConnectorManager.Connectors]\r\n    if element.Category.Name != \"Pipes\":\r\n        connectors = [conn for conn in element.MEPModel.ConnectorManager.Connectors]\r\n    return connectors\r\ndef disconnectConnectors(element):\r\n    connectors = findConnectors(element)\r\n    for connector in connectors:\r\n        for connected_connector in connector.AllRefs:\r\n            if connected_connector.IsConnected:\r\n                connector.DisconnectFrom(connected_connector)\r\n    return connectors\r\n#endregion\r\neleList   = uwList(IN[0])\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nele = pickElement()\r\nTransactionManager.Instance.TransactionTaskDone()\r\nOUT = disconnectConnectors(ele)\r\n",
+      "Engine": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "910d4f1cb8fd47eb892abd704d730e5e",
+      "Inputs": [
+        {
+          "Id": "39a4c11b62034c848914282392095ea6",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "d424a5321b154ad89d424e0b02693237",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": false,
+      "Id": "be991531aadf4d508302e6ae59f1be43",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "5b81a77fb8fc4b659600a6ee09d34a69",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Selection between a true and false."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "5b81a77fb8fc4b659600a6ee09d34a69",
+      "End": "39a4c11b62034c848914282392095ea6",
+      "Id": "a58a87c4d5294367a9ba3adacf1ab9eb"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.10.1.3976",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "NodeViews": [
+      {
+        "ShowGeometry": true,
+        "Name": "Python Script",
+        "Id": "910d4f1cb8fd47eb892abd704d730e5e",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 395.82030237580989,
+        "Y": 206.61771058315341
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Boolean",
+        "Id": "be991531aadf4d508302e6ae59f1be43",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 205.30565814865724,
+        "Y": 200.62666964375052
+      }
+    ],
+    "Annotations": [],
+    "X": 306.25634209342178,
+    "Y": 64.1718927342333,
+    "Zoom": 0.71259483262848811
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "Uuid": "4022ac12-e040-4974-a7ef-c80a5390c428",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "UpdateSheetName",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\nimport sys\r\nimport System\r\nimport os\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\nclr.AddReference(\"RevitAPIUI\")\r\nfrom Autodesk.Revit.UI import *\r\nclr.AddReference(\"System\")\r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\n\r\nimport System.Windows.Forms\r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\r\n\"\"\"_______________________________________________________________________________________\"\"\"\r\ndoc   = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp   = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\n\r\n#region__function\r\ndef getAllSheets(doc):\r\n    collector = (FilteredElementCollector(doc)\r\n                 .OfClass(ViewSheet)\r\n                 .ToElements())\r\n    sheets = sorted(collector, key=lambda s: s.SheetNumber)\r\n    return sheets\r\n#endregion\r\n\r\n#region__UI\r\nclass SheetEditorForm(Form):\r\n    def __init__(self):\r\n        self._sheets    = getAllSheets(doc)\r\n        self._isRunning = False\r\n        self.InitializeComponent()\r\n        self._loadSheets()\r\n\r\n    def InitializeComponent(self):\r\n        self._dgv         = System.Windows.Forms.DataGridView()\r\n        self._btt_RUN     = System.Windows.Forms.Button()\r\n        self._btt_CLEAR   = System.Windows.Forms.Button()\r\n        self._btt_CANCLE  = System.Windows.Forms.Button()\r\n        self._lb_status   = System.Windows.Forms.Label()\r\n        self._lb_title    = System.Windows.Forms.Label()\r\n        self._lb_hint     = System.Windows.Forms.Label()\r\n        self._lb_FVC      = System.Windows.Forms.Label()\r\n        self._progressBar = System.Windows.Forms.ProgressBar()\r\n\r\n        self.SuspendLayout()\r\n\r\n        # ── lb_title ─────────────────────────────────────────\r\n        self._lb_title.Text      = \"Batch Edit Sheet Number & Name\"\r\n        self._lb_title.Font      = System.Drawing.Font(\"Meiryo UI\", 11, System.Drawing.FontStyle.Bold)\r\n        self._lb_title.ForeColor = System.Drawing.Color.Red\r\n        self._lb_title.Location  = System.Drawing.Point(12, 10)\r\n        self._lb_title.Size      = System.Drawing.Size(460, 24)\r\n\r\n        # ── lb_hint ───────────────────────────────────────────\r\n        self._lb_hint.Text      = \"Leave 'New Number' or 'New Name' blank to keep existing value.\"\r\n        self._lb_hint.Font      = System.Drawing.Font(\"Meiryo UI\", 7.5, System.Drawing.FontStyle.Italic)\r\n        self._lb_hint.ForeColor = System.Drawing.Color.Gray\r\n        self._lb_hint.Location  = System.Drawing.Point(14, 36)\r\n        self._lb_hint.Size      = System.Drawing.Size(560, 16)\r\n\r\n        # ── DataGridView ──────────────────────────────────────\r\n        self._dgv.Location              = System.Drawing.Point(12, 58)\r\n        self._dgv.Size                  = System.Drawing.Size(760, 460)\r\n        self._dgv.AllowUserToAddRows    = False\r\n        self._dgv.AllowUserToDeleteRows = False\r\n        self._dgv.RowHeadersVisible     = False\r\n        self._dgv.SelectionMode         = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect\r\n        self._dgv.MultiSelect           = True\r\n        self._dgv.AutoSizeRowsMode      = System.Windows.Forms.DataGridViewAutoSizeRowsMode.AllCells\r\n        self._dgv.BorderStyle           = System.Windows.Forms.BorderStyle.Fixed3D\r\n        self._dgv.Font                  = System.Drawing.Font(\"Meiryo UI\", 8)\r\n        self._dgv.GridColor             = System.Drawing.Color.LightGray\r\n        self._dgv.BackgroundColor       = System.Drawing.Color.WhiteSmoke\r\n        self._dgv.CellBeginEdit        += self.Dgv_CellBeginEdit\r\n        self._dgv.KeyDown              += self.Dgv_KeyDown\r\n\r\n        # Cot 1: STT\r\n        col_stt            = System.Windows.Forms.DataGridViewTextBoxColumn()\r\n        col_stt.HeaderText = \"#\"\r\n        col_stt.Name       = \"col_stt\"\r\n        col_stt.Width      = 36\r\n        col_stt.ReadOnly   = True\r\n        col_stt.DefaultCellStyle.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter\r\n        col_stt.DefaultCellStyle.ForeColor = System.Drawing.Color.Gray\r\n\r\n        # Cot 2: Current Number (readonly)\r\n        col_cur_num                              = System.Windows.Forms.DataGridViewTextBoxColumn()\r\n        col_cur_num.HeaderText                   = \"Current Number\"\r\n        col_cur_num.Name                         = \"col_cur_num\"\r\n        col_cur_num.Width                        = 130\r\n        col_cur_num.ReadOnly                     = True\r\n        col_cur_num.DefaultCellStyle.BackColor   = System.Drawing.Color.FromArgb(235, 240, 255)\r\n        col_cur_num.DefaultCellStyle.ForeColor   = System.Drawing.Color.DarkBlue\r\n        col_cur_num.DefaultCellStyle.Font        = System.Drawing.Font(\"Meiryo UI\", 8, System.Drawing.FontStyle.Bold)\r\n\r\n        # Cot 3: Current Name (readonly)\r\n        col_cur_name                             = System.Windows.Forms.DataGridViewTextBoxColumn()\r\n        col_cur_name.HeaderText                  = \"Current Name\"\r\n        col_cur_name.Name                        = \"col_cur_name\"\r\n        col_cur_name.Width                       = 210\r\n        col_cur_name.ReadOnly                    = True\r\n        col_cur_name.DefaultCellStyle.BackColor  = System.Drawing.Color.FromArgb(235, 240, 255)\r\n        col_cur_name.DefaultCellStyle.ForeColor  = System.Drawing.Color.DarkBlue\r\n        col_cur_name.DefaultCellStyle.Font       = System.Drawing.Font(\"Meiryo UI\", 8, System.Drawing.FontStyle.Bold)\r\n\r\n        # Cot 4: Separator\r\n        col_sep            = System.Windows.Forms.DataGridViewTextBoxColumn()\r\n        col_sep.HeaderText = \">>\"\r\n        col_sep.Name       = \"col_sep\"\r\n        col_sep.Width      = 28\r\n        col_sep.ReadOnly   = True\r\n        col_sep.DefaultCellStyle.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter\r\n        col_sep.DefaultCellStyle.ForeColor = System.Drawing.Color.Gray\r\n        col_sep.DefaultCellStyle.BackColor = System.Drawing.Color.WhiteSmoke\r\n\r\n        # Cot 5: New Number (editable)\r\n        col_new_num                              = System.Windows.Forms.DataGridViewTextBoxColumn()\r\n        col_new_num.HeaderText                   = \"New Number\"\r\n        col_new_num.Name                         = \"col_new_num\"\r\n        col_new_num.Width                        = 130\r\n        col_new_num.ReadOnly                     = False\r\n        col_new_num.DefaultCellStyle.BackColor   = System.Drawing.Color.FromArgb(255, 255, 220)\r\n        col_new_num.DefaultCellStyle.ForeColor   = System.Drawing.Color.DarkRed\r\n        col_new_num.DefaultCellStyle.Font        = System.Drawing.Font(\"Meiryo UI\", 8, System.Drawing.FontStyle.Bold)\r\n\r\n        # Cot 6: New Name (editable)\r\n        col_new_name                             = System.Windows.Forms.DataGridViewTextBoxColumn()\r\n        col_new_name.HeaderText                  = \"New Name\"\r\n        col_new_name.Name                        = \"col_new_name\"\r\n        col_new_name.AutoSizeMode                = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill\r\n        col_new_name.ReadOnly                    = False\r\n        col_new_name.DefaultCellStyle.BackColor  = System.Drawing.Color.FromArgb(255, 255, 220)\r\n        col_new_name.DefaultCellStyle.ForeColor  = System.Drawing.Color.DarkRed\r\n        col_new_name.DefaultCellStyle.Font       = System.Drawing.Font(\"Meiryo UI\", 8, System.Drawing.FontStyle.Bold)\r\n\r\n        # Header style\r\n        self._dgv.ColumnHeadersDefaultCellStyle.Font      = System.Drawing.Font(\"Meiryo UI\", 8, System.Drawing.FontStyle.Bold)\r\n        self._dgv.ColumnHeadersDefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(60, 60, 80)\r\n        self._dgv.ColumnHeadersDefaultCellStyle.ForeColor = System.Drawing.Color.White\r\n        self._dgv.ColumnHeadersDefaultCellStyle.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter\r\n        self._dgv.ColumnHeadersHeightSizeMode             = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.DisableResizing\r\n        self._dgv.ColumnHeadersHeight                     = 28\r\n        self._dgv.EnableHeadersVisualStyles               = False\r\n\r\n        self._dgv.Columns.Add(col_stt)\r\n        self._dgv.Columns.Add(col_cur_num)\r\n        self._dgv.Columns.Add(col_cur_name)\r\n        self._dgv.Columns.Add(col_sep)\r\n        self._dgv.Columns.Add(col_new_num)\r\n        self._dgv.Columns.Add(col_new_name)\r\n\r\n        # ── progressBar ───────────────────────────────────────\r\n        self._progressBar.Location = System.Drawing.Point(12, 526)\r\n        self._progressBar.Size     = System.Drawing.Size(760, 14)\r\n        self._progressBar.Minimum  = 0\r\n        self._progressBar.Maximum  = 100\r\n        self._progressBar.Value    = 0\r\n        self._progressBar.Style    = System.Windows.Forms.ProgressBarStyle.Continuous\r\n\r\n        # ── lb_status ─────────────────────────────────────────\r\n        self._lb_status.Text      = \"Ready | {} sheets loaded.\".format(len(self._sheets))\r\n        self._lb_status.Font      = System.Drawing.Font(\"Meiryo UI\", 7.5, System.Drawing.FontStyle.Bold)\r\n        self._lb_status.ForeColor = System.Drawing.Color.Gray\r\n        self._lb_status.Location  = System.Drawing.Point(12, 546)\r\n        self._lb_status.Size      = System.Drawing.Size(560, 18)\r\n\r\n        # ── btt_RUN ───────────────────────────────────────────\r\n        self._btt_RUN.Text      = \"RUN\"\r\n        self._btt_RUN.Font      = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold)\r\n        self._btt_RUN.ForeColor = System.Drawing.Color.Red\r\n        self._btt_RUN.Location  = System.Drawing.Point(492, 570)\r\n        self._btt_RUN.Size      = System.Drawing.Size(85, 36)\r\n        self._btt_RUN.UseVisualStyleBackColor = True\r\n        self._btt_RUN.Click    += self.Btt_RUNClick\r\n\r\n        # ── btt_CLEAR ─────────────────────────────────────────\r\n        self._btt_CLEAR.Text      = \"CLEAR\"\r\n        self._btt_CLEAR.Font      = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold)\r\n        self._btt_CLEAR.ForeColor = System.Drawing.Color.DarkOrange\r\n        self._btt_CLEAR.Location  = System.Drawing.Point(590, 570)\r\n        self._btt_CLEAR.Size      = System.Drawing.Size(85, 36)\r\n        self._btt_CLEAR.UseVisualStyleBackColor = True\r\n        self._btt_CLEAR.Click    += self.Btt_CLEARClick\r\n\r\n        # ── btt_CANCLE ────────────────────────────────────────\r\n        self._btt_CANCLE.Text      = \"CLOSE\"\r\n        self._btt_CANCLE.Font      = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold)\r\n        self._btt_CANCLE.ForeColor = System.Drawing.Color.Red\r\n        self._btt_CANCLE.Location  = System.Drawing.Point(687, 570)\r\n        self._btt_CANCLE.Size      = System.Drawing.Size(85, 36)\r\n        self._btt_CANCLE.UseVisualStyleBackColor = True\r\n        self._btt_CANCLE.Click    += self.Btt_CANCLEClick\r\n\r\n        # ── lb_FVC ────────────────────────────────────────────\r\n        self._lb_FVC.Text      = \"@FVC\"\r\n        self._lb_FVC.Font      = System.Drawing.Font(\"Meiryo UI\", 4.8, System.Drawing.FontStyle.Bold)\r\n        self._lb_FVC.ForeColor = System.Drawing.Color.LightGray\r\n        self._lb_FVC.Location  = System.Drawing.Point(14, 580)\r\n        self._lb_FVC.Size      = System.Drawing.Size(48, 16)\r\n\r\n        # ── MainForm ──────────────────────────────────────────\r\n        self.Text            = \"Sheet Batch Editor\"\r\n        self.ClientSize      = System.Drawing.Size(784, 616)\r\n        self.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n        self.TopMost         = True\r\n        self.Controls.Add(self._lb_title)\r\n        self.Controls.Add(self._lb_hint)\r\n        self.Controls.Add(self._dgv)\r\n        self.Controls.Add(self._progressBar)\r\n        self.Controls.Add(self._lb_status)\r\n        self.Controls.Add(self._btt_RUN)\r\n        self.Controls.Add(self._btt_CLEAR)\r\n        self.Controls.Add(self._btt_CANCLE)\r\n        self.Controls.Add(self._lb_FVC)\r\n        self.ResumeLayout(False)\r\n\r\n    # ── Load du lieu vao grid ─────────────────────────────────\r\n    def _loadSheets(self):\r\n        self._dgv.Rows.Clear()\r\n        for i, sheet in enumerate(self._sheets):\r\n            row_idx = self._dgv.Rows.Add()\r\n            row     = self._dgv.Rows[row_idx]\r\n            row.Cells[\"col_stt\"].Value      = i + 1\r\n            row.Cells[\"col_cur_num\"].Value  = sheet.SheetNumber\r\n            row.Cells[\"col_cur_name\"].Value = sheet.Name\r\n            row.Cells[\"col_sep\"].Value      = \">>\"\r\n            row.Cells[\"col_new_num\"].Value  = \"\"\r\n            row.Cells[\"col_new_name\"].Value = \"\"\r\n            if i % 2 == 0:\r\n                row.DefaultCellStyle.BackColor = System.Drawing.Color.White\r\n            else:\r\n                row.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(248, 248, 252)\r\n\r\n    # ── Highlight o dang edit ─────────────────────────────────\r\n    def Dgv_CellBeginEdit(self, sender, e):\r\n        col = e.ColumnIndex\r\n        if col == self._dgv.Columns[\"col_new_num\"].Index or \\\r\n           col == self._dgv.Columns[\"col_new_name\"].Index:\r\n            self._dgv.Rows[e.RowIndex].DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(255, 250, 200)\r\n\r\n    # ── Enter de xuong dong ───────────────────────────────────\r\n    def Dgv_KeyDown(self, sender, e):\r\n        if e.KeyCode == System.Windows.Forms.Keys.Enter:\r\n            cur_row = self._dgv.CurrentCell.RowIndex\r\n            cur_col = self._dgv.CurrentCell.ColumnIndex\r\n            self._dgv.EndEdit()\r\n            next_row = cur_row + 1\r\n            if next_row < self._dgv.Rows.Count:\r\n                self._dgv.CurrentCell = self._dgv.Rows[next_row].Cells[cur_col]\r\n            e.Handled = True\r\n\r\n    # ── RUN ───────────────────────────────────────────────────\r\n    def Btt_RUNClick(self, sender, e):\r\n        if self._isRunning:\r\n            return\r\n\r\n        updates = []\r\n        for i, sheet in enumerate(self._sheets):\r\n            row      = self._dgv.Rows[i]\r\n            new_num  = str(row.Cells[\"col_new_num\"].Value  or \"\").strip()\r\n            new_name = str(row.Cells[\"col_new_name\"].Value or \"\").strip()\r\n            if new_num or new_name:\r\n                updates.append((sheet, new_num, new_name))\r\n\r\n        if not updates:\r\n            MessageBox.Show(\r\n                \"No changes detected.\\nPlease enter New Number or New Name for at least one sheet.\",\r\n                \"Nothing to Update\",\r\n                MessageBoxButtons.OK,\r\n                MessageBoxIcon.Information)\r\n            return\r\n\r\n        # Kiem tra trung Number\r\n        all_existing_numbers = set(s.SheetNumber for s in self._sheets)\r\n        new_numbers_entered  = {}\r\n        duplicates           = []\r\n        for sheet, new_num, new_name in updates:\r\n            if not new_num:\r\n                continue\r\n            if new_num in all_existing_numbers and new_num != sheet.SheetNumber:\r\n                duplicates.append(\"'{}' -> '{}' (already exists)\".format(sheet.SheetNumber, new_num))\r\n            if new_num in new_numbers_entered:\r\n                duplicates.append(\"'{}' duplicate in new entries\".format(new_num))\r\n            new_numbers_entered[new_num] = sheet\r\n\r\n        if duplicates:\r\n            msg = \"Duplicate sheet numbers detected:\\n\\n\" + \"\\n\".join(duplicates) + \\\r\n                  \"\\n\\nPlease fix before running.\"\r\n            MessageBox.Show(msg, \"Duplicate Numbers\",\r\n                MessageBoxButtons.OK, MessageBoxIcon.Warning)\r\n            return\r\n\r\n        confirm_msg = \"About to update {} sheet(s).\\n\\nContinue?\".format(len(updates))\r\n        if MessageBox.Show(confirm_msg, \"Confirm Update\",\r\n                MessageBoxButtons.YesNo, MessageBoxIcon.Question) \\\r\n                != System.Windows.Forms.DialogResult.Yes:\r\n            return\r\n\r\n        # Transaction\r\n        self._isRunning          = True\r\n        self._btt_RUN.Enabled    = False\r\n        self._btt_CLEAR.Enabled  = False\r\n        self._btt_CANCLE.Enabled = False\r\n        self._progressBar.Maximum = len(updates)\r\n        self._progressBar.Value   = 0\r\n\r\n        success = []\r\n        failed  = []\r\n\r\n        TransactionManager.Instance.EnsureInTransaction(doc)\r\n        try:\r\n            for i, (sheet, new_num, new_name) in enumerate(updates):\r\n                old_num  = sheet.SheetNumber\r\n                old_name = sheet.Name\r\n                try:\r\n                    if new_num:\r\n                        sheet.SheetNumber = new_num\r\n                    if new_name:\r\n                        sheet.Name = new_name\r\n                    success.append(\"[{}] '{}' -> '{}' | '{}' -> '{}'\".format(\r\n                        i + 1,\r\n                        old_num,  new_num  if new_num  else old_num,\r\n                        old_name, new_name if new_name else old_name))\r\n                except Exception as ex:\r\n                    try:\r\n                        sheet.SheetNumber = old_num\r\n                        sheet.Name        = old_name\r\n                    except:\r\n                        pass\r\n                    failed.append(\"  x [{}] '{}' | {}\".format(old_num, old_name, str(ex)))\r\n\r\n                self._progressBar.Value   = i + 1\r\n                self._lb_status.ForeColor = System.Drawing.Color.DarkOrange\r\n                self._lb_status.Text      = \"Updating [{}/{}]: {}\".format(\r\n                    i + 1, len(updates), sheet.SheetNumber)\r\n                System.Windows.Forms.Application.DoEvents()\r\n\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n        except Exception as ex:\r\n            TransactionManager.Instance.ForceCloseTransaction()\r\n            failed.append(\"Transaction error: \" + str(ex))\r\n\r\n        # Reload grid\r\n        self._sheets = getAllSheets(doc)\r\n        self._loadSheets()\r\n\r\n        if failed:\r\n            self._lb_status.ForeColor = System.Drawing.Color.OrangeRed\r\n            self._lb_status.Text = \"Done | {} updated, {} failed.\".format(\r\n                len(success), len(failed))\r\n            detail = \"Updated:\\n\" + \"\\n\".join(success) + \\\r\n                     \"\\n\\nFailed:\\n\" + \"\\n\".join(failed)\r\n            MessageBox.Show(detail, \"Result\",\r\n                MessageBoxButtons.OK, MessageBoxIcon.Warning)\r\n        else:\r\n            self._lb_status.ForeColor = System.Drawing.Color.Green\r\n            self._lb_status.Text = \"Done | {} sheet(s) updated successfully!\".format(len(success))\r\n\r\n        self._isRunning          = False\r\n        self._btt_RUN.Enabled    = True\r\n        self._btt_CLEAR.Enabled  = True\r\n        self._btt_CANCLE.Enabled = True\r\n\r\n    # ── CLEAR ─────────────────────────────────────────────────\r\n    def Btt_CLEARClick(self, sender, e):\r\n        for row in self._dgv.Rows:\r\n            row.Cells[\"col_new_num\"].Value  = \"\"\r\n            row.Cells[\"col_new_name\"].Value = \"\"\r\n        self._lb_status.ForeColor = System.Drawing.Color.Gray\r\n        self._lb_status.Text      = \"Cleared | {} sheets loaded.\".format(len(self._sheets))\r\n\r\n    # ── CLOSE ─────────────────────────────────────────────────\r\n    def Btt_CANCLEClick(self, sender, e):\r\n        self.Close()\r\n#endregion\r\n\r\nf = SheetEditorForm()\r\nApplication.Run(f)",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "910d4f1cb8fd47eb892abd704d730e5e",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "39a4c11b62034c848914282392095ea6",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "d424a5321b154ad89d424e0b02693237",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "be991531aadf4d508302e6ae59f1be43",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "5b81a77fb8fc4b659600a6ee09d34a69",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "5b81a77fb8fc4b659600a6ee09d34a69",
+      "End": "39a4c11b62034c848914282392095ea6",
+      "Id": "a58a87c4d5294367a9ba3adacf1ab9eb",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": null,
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "910d4f1cb8fd47eb892abd704d730e5e",
+        "Name": "Python Script",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 529.41655601245748,
+        "Y": 203.24973780239756
+      },
+      {
+        "Id": "be991531aadf4d508302e6ae59f1be43",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 205.30565814865724,
+        "Y": 200.62666964375052
+      }
+    ],
+    "Annotations": [],
+    "X": 306.25634209342178,
+    "Y": 64.1718927342333,
+    "Zoom": 0.71259483262848811
+  }
+}

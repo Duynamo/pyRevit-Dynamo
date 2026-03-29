@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "Generate Params_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n# Import tất cả các thư viện cần thiết\r\nimport clr\r\nimport sys\r\nimport System\r\nimport math\r\nimport collections\r\nimport os\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.DB.Structure import *\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\")\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import *\r\n\r\nclr.AddReference(\"System\")\r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\nimport System.Windows.Forms\r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\r\nclr.AddReference(\"Microsoft.Office.Interop.Excel\")\r\nfrom Microsoft.Office.Interop import Excel\r\nimport System.Runtime.InteropServices\r\n\r\n# Khởi tạo các biến Revit cơ bản\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\r\n# Hàm chọn file Excel\r\ndef select_excel_file():\r\n    \"\"\"Hiển thị hộp thoại để chọn file Excel.\"\"\"\r\n    dialog = OpenFileDialog()\r\n    dialog.Filter = \"Excel Files (*.xlsx)|*.xlsx|All Files (*.*)|*.*\"\r\n    dialog.Title = \"Chọn file Excel\"\r\n    if dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK:\r\n        return dialog.FileName\r\n    return None\r\n\r\n# Hàm đọc dữ liệu từ file Excel\r\ndef read_excel_data(file_path, sheet_name):\r\n    \"\"\"Đọc dữ liệu từ sheet 'Shared Parameter' trong file Excel và trả về danh sách tên parameter.\"\"\"\r\n    if not os.path.exists(file_path):\r\n        return None, \"Lỗi: File '%s' không tồn tại\" % file_path\r\n    \r\n    excel = None\r\n    workbook = None\r\n    sheet = None\r\n    try:\r\n        excel = Excel.ApplicationClass()\r\n        excel.Visible = False\r\n        workbook = excel.Workbooks.Open(file_path)\r\n        try:\r\n            sheet = workbook.Worksheets[sheet_name]\r\n        except:\r\n            return None, \"Sheet '%s' không tồn tại\" % sheet_name\r\n        \r\n        # Xác định phạm vi dữ liệu\r\n        used_range = sheet.UsedRange\r\n        last_row = used_range.Rows.Count\r\n        last_col = used_range.Columns.Count\r\n        data = []\r\n        \r\n        # Kiểm tra sheet có dữ liệu không\r\n        if last_row < 1:\r\n            return None, \"Sheet '%s' rỗng\" % sheet_name\r\n        \r\n        # Đọc tiêu đề từ dòng 1\r\n        headers = []\r\n        for col_idx in range(1, last_col + 1):\r\n            cell = sheet.Cells[1, col_idx]\r\n            header_value = str(cell.Value2) if cell.Value2 is not None else \"Column_%s\" % col_idx\r\n            headers.append(header_value)\r\n        \r\n        # Kiểm tra có tiêu đề 'Shared Parameters Name' không\r\n        if \"Shared Parameters Name\" not in headers:\r\n            return None, \"Sheet '%s' thiếu tiêu đề 'Shared Parameters Name'\" % sheet_name\r\n        \r\n        # Đọc dữ liệu từ dòng 2, lấy giá trị từ cột 'Shared Parameters Name'\r\n        param_names = []\r\n        for row_idx in range(2, last_row + 1):\r\n            cell = sheet.Cells[row_idx, headers.index(\"Shared Parameters Name\") + 1]\r\n            cell_value = str(cell.Value2) if cell.Value2 is not None else None\r\n            if cell_value:\r\n                param_names.append(cell_value)\r\n        \r\n        return param_names, None\r\n    \r\n    except Exception as e:\r\n        return None, \"Lỗi đọc file Excel: %s\" % str(e)\r\n    \r\n    finally:\r\n        # Đóng và giải phóng COM objects\r\n        if sheet is not None:\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(sheet)\r\n        if workbook is not None:\r\n            workbook.Close(False)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook)\r\n        if excel is not None:\r\n            excel.Quit()\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(excel)\r\n\r\n# Hàm lấy tất cả các phần tử thuộc các danh mục Pipe, Pipe Fittings, Pipe Accessories, và Generic Model\r\ndef get_elements_in_categories():\r\n    \"\"\"Lấy tất cả các đối tượng thuộc các danh mục Pipe, Pipe Fittings, Pipe Accessories, và Generic Model trong view hiện tại.\"\"\"\r\n    all_elements = []\r\n    all_elements_Id = []\r\n    \r\n    # Định nghĩa các danh mục cần lọc\r\n    categories = [\r\n        BuiltInCategory.OST_PipeCurves,      # Danh mục Pipe\r\n        BuiltInCategory.OST_PipeFitting,     # Danh mục Pipe Fittings\r\n        BuiltInCategory.OST_PipeAccessory,   # Danh mục Pipe Accessories\r\n        BuiltInCategory.OST_GenericModel     # Danh mục Generic Model\r\n    ]\r\n    \r\n    # Lấy view hiện tại\r\n    active_view_id = doc.ActiveView.Id\r\n    \r\n    # Lặp qua từng danh mục và lấy các phần tử\r\n    for category in categories:\r\n        elements = FilteredElementCollector(doc, active_view_id)\\\r\n                    .OfCategory(category)\\\r\n                    .WhereElementIsNotElementType()\\\r\n                    .ToElements()\r\n        all_elements.extend(elements)\r\n    \r\n    # Nếu không tìm thấy phần tử, trả về danh sách rỗng\r\n    if not all_elements:\r\n        return [], []\r\n    \r\n    # Lấy ID của các phần tử\r\n    for element in all_elements:\r\n        all_elements_Id.append(element.Id.IntegerValue)\r\n    \r\n    return all_elements, all_elements_Id\r\n\r\n# Hàm tạo và gán shared parameters cho các phần tử\r\ndef create_and_bind_shared_parameters(param_names):\r\n    \"\"\"Tạo và gán shared parameters từ danh sách tên parameter vào các danh mục.\"\"\"\r\n    # Định nghĩa các danh mục để gán parameter\r\n    category_ids = [\r\n        BuiltInCategory.OST_PipeCurves,      # Pipes\r\n        BuiltInCategory.OST_PipeFitting,     # Pipe Fittings\r\n        BuiltInCategory.OST_PipeAccessory,   # Pipe Accessories\r\n        BuiltInCategory.OST_GenericModel     # Generic Model\r\n    ]\r\n    \r\n    # Bắt đầu transaction\r\n    t = Transaction(doc, \"Add Shared Parameters\")\r\n    t.Start()\r\n    \r\n    try:\r\n        # Mở hoặc tạo file shared parameter\r\n        shared_param_file = app.OpenSharedParameterFile()\r\n        if shared_param_file is None:\r\n            app.SharedParameterFile = app.OpenSharedParameterFile()\r\n            shared_param_file = app.OpenSharedParameterFile()\r\n        \r\n        # Tạo hoặc lấy group trong file shared parameter\r\n        group_name = \"ProjectParameters\"\r\n        group = shared_param_file.Groups.get_Item(group_name)\r\n        if group is None:\r\n            group = shared_param_file.Groups.Create(group_name)\r\n        \r\n        # Tạo CategorySet để gán parameter\r\n        cat_set = app.Create.NewCategorySet()\r\n        for cat_id in category_ids:\r\n            category = doc.Settings.Categories.get_Item(cat_id)\r\n            if category:\r\n                cat_set.Insert(category)\r\n        \r\n        # Tạo hoặc cập nhật shared parameters\r\n        for param_name in param_names:\r\n            # Kiểm tra xem parameter đã tồn tại chưa\r\n            def_exists = group.Definitions.get_Item(param_name)\r\n            if def_exists is None:\r\n                # Tạo external definition mới với định dạng Text\r\n                external_def_creation_options = ExternalDefinitionCreationOptions(param_name, SpecTypeId.String.Text) # Sửa lỗi: thay ParameterType.Text thành SpecTypeId.String.Text\r\n                external_def_creation_options.Visible = True\r\n                external_def_creation_options.UserModifiable = True\r\n                def_exists = group.Definitions.Create(external_def_creation_options)\r\n            \r\n            # Gán parameter vào các danh mục\r\n            binding = app.Create.NewInstanceBinding(cat_set)\r\n            doc.ParameterBindings.Insert(def_exists, binding, BuiltInParameterGroup.PG_DATA)\r\n        \r\n        t.Commit()\r\n        return True, \"Shared parameters added successfully.\"\r\n    \r\n    except Exception as e:\r\n        t.RollBack()\r\n        return False, \"Error: \" + str(e)\r\n\r\n# Chọn file Excel và đọc dữ liệu từ sheet \"Shared Parameter\"\r\nexcelPath = select_excel_file()\r\nif excelPath:\r\n    sheetName = \"Shared Parameter\"\r\n    param_names, error_message = read_excel_data(excelPath, sheetName)\r\n    \r\n    if error_message:\r\n        OUT = error_message\r\n    elif param_names:\r\n        # Tạo và gán shared parameters\r\n        success, message = create_and_bind_shared_parameters(param_names)\r\n        OUT = message\r\n    else:\r\n        OUT = \"Không tìm thấy shared parameters trong sheet.\"\r\nelse:\r\n    OUT = \"Không chọn được file Excel.\"",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "f3c538264226480294276e3767f0d077",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cfcca94380314aa881adc744855ea9b2",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "49197c2ec4c742b7b8d1692cc4325e0a",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "49197c2ec4c742b7b8d1692cc4325e0a",
+      "End": "f3c538264226480294276e3767f0d077",
+      "Id": "2d88770e73a24df5b1adb83520dfacb2",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+        "Name": "Automatically Generate Project Params by import Shared Params from Excel file",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 357.59999999999997,
+        "Y": 162.40000000000006
+      },
+      {
+        "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 94.4,
+        "Y": 162.40000000000006
+      }
+    ],
+    "Annotations": [],
+    "X": 126.57237025379301,
+    "Y": 174.20408260728479,
+    "Zoom": 0.6586748521582152
+  }
+}

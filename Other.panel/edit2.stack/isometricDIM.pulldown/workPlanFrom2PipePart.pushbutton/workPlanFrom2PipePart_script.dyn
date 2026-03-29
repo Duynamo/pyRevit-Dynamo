@@ -1,0 +1,173 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "workPlanFrom2PipePart_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom math import *\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\nclass selectionFilter(ISelectionFilter):\r\n    def __init__(self,categories):\r\n        self.categories = categories\r\n    def AllowElement(self, element):\r\n        eleName = element.Category.Name in self.categories\r\n        return eleName\r\ndef pickPipesOrPipeParts():\r\n    categories = ['Pipe Fittings', 'Pipe Accessories', 'Pipes']\r\n    eles = []\r\n    fittingFilter = selectionFilter(categories)\r\n    try:\r\n        while len(eles) < 2:\r\n            ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, fittingFilter)\r\n            ele = doc.GetElement(ref.ElementId)\r\n            eles.append(ele)\r\n        return eles\r\n    except Autodesk.Revit.Exceptions.OperationCanceledException:\r\n        if len(eles) < 2:\r\n            return []\r\n        return eles\r\n    except Exception as e:\r\n        return []\r\ndef create_plane_from_three_points(point1, point2, point3):\r\n    vector1 = point2 - point1\r\n    vector2 = point3 - point1\r\n    normal = vector1.CrossProduct(vector2).Normalize()\r\n    plane = Plane.CreateByNormalAndOrigin(normal, point1)  \r\n    return plane    \r\n    \r\nselectedElement = pickPipesOrPipeParts()\r\nconOriginList = []\r\nfor ele in selectedElement:\r\n    if ele.Category.Name == 'Pipes':\r\n        pipe_conList = list(ele.ConnectorManager.Connectors)\r\n        for c in pipe_conList:\r\n            # Kiểm tra khoảng cách đến các Origin hiện có\r\n            is_unique = True\r\n            for existing_origin in conOriginList:\r\n                distance = c.Origin.DistanceTo(existing_origin)  # Khoảng cách (feet)\r\n                if distance < 0.00328084:  # 1mm = 0.00328084 feet\r\n                    is_unique = False\r\n                    break\r\n            if is_unique:\r\n                conOriginList.append(c.Origin)\r\n\r\n    if ele.Category.Name != 'Pipes':\r\n        notPipe_conList = list(ele.MEPModel.ConnectorManager.Connectors)\r\n        for c in notPipe_conList:\r\n            # Kiểm tra khoảng cách đến các Origin hiện có\r\n            is_unique = True\r\n            for existing_origin in conOriginList:\r\n                distance = c.Origin.DistanceTo(existing_origin)  # Khoảng cách (feet)\r\n                if distance < 0.00328084:  # 1mm = 0.00328084 feet\r\n                    is_unique = False\r\n                    break\r\n            if is_unique:\r\n                conOriginList.append(c.Origin)\r\nTransactionManager.Instance.EnsureInTransaction(doc)                \r\ntempPlan = create_plane_from_three_points(conOriginList[0], conOriginList[1], conOriginList[2])\r\nsketchPlane = SketchPlane.Create(doc, tempPlan)\r\nview.SketchPlane = sketchPlane\r\nTransactionManager.Instance.TransactionTaskDone()\r\nOUT = 'Hello World'",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "Name": "Hello World",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 473.52293100415625,
+        "Y": 131.70691563513685
+      },
+      {
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 97.235676123079941,
+        "Y": 133.05673569568208
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "1aa6dfd11cc64f269aac6a608c3df26d",
+        "Title": "@D",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "0122234ee9c249f39aa5138879075566",
+          "5af2b010bc3547cd9e363fbb23363d62"
+        ],
+        "HasNestedGroups": false,
+        "Left": 87.235676123079941,
+        "Top": 58.506915635136849,
+        "Width": 559.88725488107639,
+        "Height": 217.8,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 131.70691563513685,
+        "InitialHeight": 146.34982006054523,
+        "TextblockHeight": 63.2,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": 66.320928429214746,
+    "Y": 76.59637572403409,
+    "Zoom": 0.78436932804482706
+  }
+}

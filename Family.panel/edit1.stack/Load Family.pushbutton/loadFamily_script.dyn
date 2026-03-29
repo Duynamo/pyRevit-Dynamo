@@ -1,0 +1,123 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "loadFamily_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport os\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB import SaveAsOptions\r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB.Plumbing import*\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\"\"\"_______________________________________________________________________________________\"\"\"\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#region__function\r\nclass MainForm(Form):\r\n\tdef __init__(self):\r\n\t\tself.InitializeComponent()\r\n\t\r\n\tdef InitializeComponent(self):\r\n\t\tself._grb_directFolder = System.Windows.Forms.GroupBox()\r\n\t\tself._btt_selectFolder = System.Windows.Forms.Button()\r\n\t\tself._txb_directFolder = System.Windows.Forms.TextBox()\r\n\t\tself._gbr_Family = System.Windows.Forms.GroupBox()\r\n\t\tself._lb_FVC = System.Windows.Forms.Label()\r\n\t\tself._btt_IMPORT = System.Windows.Forms.Button()\r\n\t\tself._btt_CANCLE = System.Windows.Forms.Button()\r\n\t\tself._clb_desFamily = System.Windows.Forms.CheckedListBox()\r\n\t\tself._grb_directFolder.SuspendLayout()\r\n\t\tself._gbr_Family.SuspendLayout()\r\n\t\tself.SuspendLayout()\r\n\t\t# \r\n\t\t# grb_directFolder\r\n\t\t# \r\n\t\tself._grb_directFolder.Controls.Add(self._txb_directFolder)\r\n\t\tself._grb_directFolder.Controls.Add(self._btt_selectFolder)\r\n\t\tself._grb_directFolder.Font = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._grb_directFolder.ForeColor = System.Drawing.Color.Red\r\n\t\tself._grb_directFolder.Location = System.Drawing.Point(13, 13)\r\n\t\tself._grb_directFolder.Name = \"grb_directFolder\"\r\n\t\tself._grb_directFolder.Size = System.Drawing.Size(555, 67)\r\n\t\tself._grb_directFolder.TabIndex = 0\r\n\t\tself._grb_directFolder.TabStop = False\r\n\t\tself._grb_directFolder.Text = \"Folder\"\r\n\t\t# \r\n\t\t# btt_selectFolder\r\n\t\t# \r\n\t\tself._btt_selectFolder.Font = System.Drawing.Font(\"Meiryo UI\", 7.20000029, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._btt_selectFolder.ForeColor = System.Drawing.Color.Blue\r\n\t\tself._btt_selectFolder.Location = System.Drawing.Point(437, 26)\r\n\t\tself._btt_selectFolder.Name = \"btt_selectFolder\"\r\n\t\tself._btt_selectFolder.Size = System.Drawing.Size(112, 25)\r\n\t\tself._btt_selectFolder.TabIndex = 0\r\n\t\tself._btt_selectFolder.Text = \"Select Folder\"\r\n\t\tself._btt_selectFolder.UseVisualStyleBackColor = True\r\n\t\tself._btt_selectFolder.Click += self.Btt_selectFolderClick\r\n\t\t# \r\n\t\t# txb_directFolder\r\n\t\t# \r\n\t\tself._txb_directFolder.Location = System.Drawing.Point(4, 26)\r\n\t\tself._txb_directFolder.Name = \"txb_directFolder\"\r\n\t\tself._txb_directFolder.Size = System.Drawing.Size(424, 27)\r\n\t\tself._txb_directFolder.TabIndex = 1\r\n\t\tself._txb_directFolder.TextChanged += self.Txb_directFolderTextChanged\r\n\t\t# \r\n\t\t# gbr_Family\r\n\t\t# \r\n\t\tself._gbr_Family.Controls.Add(self._clb_desFamily)\r\n\t\tself._gbr_Family.Font = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._gbr_Family.ForeColor = System.Drawing.Color.Red\r\n\t\tself._gbr_Family.Location = System.Drawing.Point(13, 86)\r\n\t\tself._gbr_Family.Name = \"gbr_Family\"\r\n\t\tself._gbr_Family.Size = System.Drawing.Size(428, 142)\r\n\t\tself._gbr_Family.TabIndex = 1\r\n\t\tself._gbr_Family.TabStop = False\r\n\t\tself._gbr_Family.Text = \"Family\"\r\n\t\tself._gbr_Family.Enter += self.Gbr_FamilyEnter\r\n\t\t# \r\n\t\t# lb_FVC\r\n\t\t# \r\n\t\tself._lb_FVC.Font = System.Drawing.Font(\"Meiryo UI\", 4.8, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._lb_FVC.Location = System.Drawing.Point(12, 231)\r\n\t\tself._lb_FVC.Name = \"lb_FVC\"\r\n\t\tself._lb_FVC.Size = System.Drawing.Size(47, 23)\r\n\t\tself._lb_FVC.TabIndex = 2\r\n\t\tself._lb_FVC.Text = \"@FVC\"\r\n\t\tself._lb_FVC.TextAlign = System.Drawing.ContentAlignment.MiddleCenter\r\n\t\t# \r\n\t\t# btt_IMPORT\r\n\t\t# \r\n\t\tself._btt_IMPORT.Font = System.Drawing.Font(\"Meiryo UI\", 7.20000029, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._btt_IMPORT.ForeColor = System.Drawing.Color.Blue\r\n\t\tself._btt_IMPORT.Location = System.Drawing.Point(450, 172)\r\n\t\tself._btt_IMPORT.Name = \"btt_IMPORT\"\r\n\t\tself._btt_IMPORT.Size = System.Drawing.Size(112, 25)\r\n\t\tself._btt_IMPORT.TabIndex = 3\r\n\t\tself._btt_IMPORT.Text = \"IMPORT\"\r\n\t\tself._btt_IMPORT.UseVisualStyleBackColor = True\r\n\t\tself._btt_IMPORT.Click += self.Btt_IMPORTClick\r\n\t\t# \r\n\t\t# btt_CANCLE\r\n\t\t# \r\n\t\tself._btt_CANCLE.Font = System.Drawing.Font(\"Meiryo UI\", 7.20000029, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._btt_CANCLE.ForeColor = System.Drawing.Color.Blue\r\n\t\tself._btt_CANCLE.Location = System.Drawing.Point(450, 203)\r\n\t\tself._btt_CANCLE.Name = \"btt_CANCLE\"\r\n\t\tself._btt_CANCLE.Size = System.Drawing.Size(112, 25)\r\n\t\tself._btt_CANCLE.TabIndex = 3\r\n\t\tself._btt_CANCLE.Text = \"CANCLE\"\r\n\t\tself._btt_CANCLE.UseVisualStyleBackColor = True\r\n\t\tself._btt_CANCLE.Click += self.Btt_CANCLEClick\r\n\t\t# \r\n\t\t# clb_desFamily\r\n\t\t# \r\n\t\t# self._clb_desFamily.DisplayMember = 'Name'\r\n\t\tself._clb_desFamily.CheckOnClick = True\r\n\t\tself._clb_desFamily.Font = System.Drawing.Font(\"Meiryo UI\", 7.20000029, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, 128)\r\n\t\tself._clb_desFamily.FormattingEnabled = True\r\n\t\tself._clb_desFamily.Location = System.Drawing.Point(7, 27)\r\n\t\tself._clb_desFamily.Name = \"clb_desFamily\"\r\n\t\tself._clb_desFamily.Size = System.Drawing.Size(421, 112)\r\n\t\tself._clb_desFamily.TabIndex = 0\r\n\t\tself._clb_desFamily.SelectedIndexChanged += self.Clb_desFamilySelectedIndexChanged\r\n\t\t# self._clb_desFamily.Items.AddRange(System.Array[System.Object](self.familyFiles))\r\n\t\t# \r\n\t\t# MainForm\r\n\t\t# \r\n\t\tself.ClientSize = System.Drawing.Size(580, 257)\r\n\t\tself.Controls.Add(self._btt_CANCLE)\r\n\t\tself.Controls.Add(self._btt_IMPORT)\r\n\t\tself.Controls.Add(self._lb_FVC)\r\n\t\tself.Controls.Add(self._gbr_Family)\r\n\t\tself.Controls.Add(self._grb_directFolder)\r\n\t\tself.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n\t\tself.Name = \"MainForm\"\r\n\t\tself.Text = \"Import Family\"\r\n\t\tself.TopMost = True\r\n\t\tself._grb_directFolder.ResumeLayout(False)\r\n\t\tself._grb_directFolder.PerformLayout()\r\n\t\tself._gbr_Family.ResumeLayout(False)\r\n\t\tself.ResumeLayout(False)\r\n#endrerion\r\n#region__biding\r\n\tdef Txb_directFolderTextChanged(self, sender, e):\r\n\t\tpass\r\n\tdef Gbr_FamilyEnter(self, sender, e):\r\n\t\tpass\r\n\tdef Btt_selectFolderClick(self, sender, e):\r\n\t\tfileDialog = FolderBrowserDialog()\r\n\t\tfileDialog.ShowDialog()\r\n\t\tself._txb_directFolder.Text = fileDialog.SelectedPath\r\n\t\tself.populateFamiliesInList()\r\n\t\tpass\r\n\tdef Clb_desFamilySelectedIndexChanged(self, sender, e):\t\t\t\r\n\t\tpass\r\n\tdef populateFamiliesInList(self):\r\n\t\tself._clb_desFamily.Items.Clear()\r\n\t\tdirectory = self._txb_directFolder.Text\r\n\t\tif os.path.isdir(directory):\r\n\t\t\tfamilyFiles = [f for f in os.listdir(directory) if f.endswith('.rfa')]\r\n\t\t\tself._clb_desFamily.Items.AddRange(System.Array[System.Object](familyFiles))\t\r\n\t\tpass\r\n\tdef Btt_IMPORTClick(self, sender, e):    \r\n\t\tselectedFamilies = [item for item in self._clb_desFamily.CheckedItems]\r\n\t\tdirectory = self._txb_directFolder.Text\r\n\t\timportedFamilies = []\r\n\t\tbooleans = []\r\n\t\telementList = []\r\n\t\tTransactionManager.Instance.EnsureInTransaction(doc)\r\n\t\tfor familyFile in selectedFamilies:\r\n\t\t\ttry:\r\n\t\t\t\tfamilyPath = os.path.join(directory, familyFile)\r\n\t\t\t\tloadedFamily = clr.Reference[Family]()\r\n\t\t\t\tdoc.LoadFamily(familyPath, loadedFamily)\r\n\t\t\t\tbooleans.append(True)\r\n\t\t\texcept: \r\n\t\t\t\tbooleans.append(False)\r\n\t\tTransactionManager.Instance.TransactionTaskDone()\t\r\n\t\tcollector = FilteredElementCollector(doc).OfClass(Family)\r\n\t\tfor item in collector.ToElements():\r\n\t\t\tif item.Name in [os.path.splitext(fam)[0] for fam in selectedFamilies]:  # Compare by family names\r\n\t\t\t\ttypeList = list()\r\n\t\t\t\tfor famTypeId in item.GetFamilySymbolIds():\r\n\t\t\t\t\ttypeList.append(doc.GetElement(famTypeId).ToDSType(True))\r\n\t\t\t\telementList.append(typeList)\r\n\t\tTransactionManager.Instance.TransactionTaskDone()\r\n\t\tself.Close()  # Close the form\r\n\t\tpass\r\n\tdef Btt_CANCLEClick(self, sender, e):\r\n\t\tself.Close()\r\n\t\tpass\r\n#endregion\r\nf = MainForm()\r\nApplication.Run(f)",
+      "Engine": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+      "Inputs": [
+        {
+          "Id": "f3c538264226480294276e3767f0d077",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cfcca94380314aa881adc744855ea9b2",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": false,
+      "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "49197c2ec4c742b7b8d1692cc4325e0a",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Selection between a true and false."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "49197c2ec4c742b7b8d1692cc4325e0a",
+      "End": "f3c538264226480294276e3767f0d077",
+      "Id": "2d88770e73a24df5b1adb83520dfacb2"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.10.1.3976",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "NodeViews": [
+      {
+        "ShowGeometry": true,
+        "Name": "Load family in direct folder",
+        "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 280.8,
+        "Y": 158.40000000000006
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Boolean",
+        "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 94.4,
+        "Y": 162.40000000000006
+      }
+    ],
+    "Annotations": [],
+    "X": 0.0,
+    "Y": 0.0,
+    "Zoom": 1.0
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "Import Params_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\nimport os\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\n\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import*\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\r\nclr.AddReference(\"Microsoft.Office.Interop.Excel\")\r\nfrom Microsoft.Office.Interop import Excel\r\nimport System.Runtime.InteropServices\r\nimport System.Runtime.InteropServices as Marshal\r\n\r\n\"\"\"___\"\"\"\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\"\"\"___\"\"\"\r\n#region _function\r\ndef select_excel_file():\r\n    \"\"\"Hiển thị hộp thoại để chọn file Excel.\"\"\"\r\n    dialog = OpenFileDialog()\r\n    dialog.Filter = \"Excel Files (*.xlsx)|*.xlsx|All Files (*.*)|*.*\"\r\n    dialog.Title = \"Chọn file Excel\"\r\n    if dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK:\r\n        return dialog.FileName\r\n    return None\r\n\r\ndef read_excel_data(file_path, sheet_name):\r\n    \"\"\"Đọc dữ liệu từ file Excel bằng Microsoft.Office.Interop.Excel.\"\"\"\r\n    try:\r\n        excel = Excel.ApplicationClass()\r\n        excel.Visible = False\r\n        workbook = excel.Workbooks.Open(file_path)\r\n        try:\r\n            sheet = workbook.Worksheets[sheet_name]\r\n        except:\r\n            workbook.Close(False)\r\n            excel.Quit()\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(excel)\r\n            return None, \"Sheet '%s' không tồn tại\" % sheet_name\r\n        \r\n        # Xác định phạm vi dữ liệu\r\n        used_range = sheet.UsedRange\r\n        last_row = used_range.Rows.Count\r\n        last_col = used_range.Columns.Count\r\n        data = []\r\n        \r\n        # Kiểm tra sheet có dữ liệu không\r\n        if last_row < 1:\r\n            workbook.Close(False)\r\n            excel.Quit()\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(sheet)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(excel)\r\n            return None, \"Sheet '%s' rỗng\" % sheet_name\r\n        \r\n        # Đọc tiêu đề từ dòng 1\r\n        headers = []\r\n        for col_idx in range(1, last_col + 1):\r\n            cell = sheet.Cells[1, col_idx]\r\n            header_value = str(cell.Value2) if cell.Value2 is not None else \"Column_%s\" % col_idx\r\n            headers.append(header_value)\r\n        \r\n        # Kiểm tra có tiêu đề Element_ID không\r\n        if \"Element_ID\" not in headers:\r\n            workbook.Close(False)\r\n            excel.Quit()\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(sheet)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(excel)\r\n            return None, \"Sheet '%s' thiếu tiêu đề 'Element_ID'\" % sheet_name\r\n        \r\n        # Đọc dữ liệu từ dòng 2\r\n        for row_idx in range(2, last_row + 1):\r\n            row_data = {}\r\n            for idx, header in enumerate(headers):\r\n                cell = sheet.Cells[row_idx, idx + 1]\r\n                cell_value = cell.Value2 if cell.Value2 is not None else None\r\n                row_data[header] = cell_value\r\n            if row_data.get(\"Element_ID\"):\r\n                data.append(row_data)\r\n            else:\r\n                data.append({\"Error\": \"Dòng %s: Thiếu hoặc rỗng Element_ID\" % row_idx})\r\n        \r\n        # Đóng Excel\r\n        workbook.Close(False)\r\n        excel.Quit()\r\n        # Giải phóng COM objects\r\n        System.Runtime.InteropServices.Marshal.ReleaseComObject(sheet)\r\n        System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook)\r\n        System.Runtime.InteropServices.Marshal.ReleaseComObject(excel)\r\n        return headers, data\r\n    \r\n    except Exception as e:\r\n        try:\r\n            workbook.Close(False)\r\n            excel.Quit()\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(sheet)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook)\r\n            System.Runtime.InteropServices.Marshal.ReleaseComObject(excel)\r\n        except:\r\n            pass\r\n        return None, \"Lỗi đọc file Excel: %s\" % str(e)\r\n    \r\ndef get_element_by_id(element_id):\r\n    \"\"\"Tìm phần tử Revit theo Element ID.\"\"\"\r\n    try:\r\n        # Xử lý element_id có thể là số thực hoặc chuỗi\r\n        if isinstance(element_id, float):\r\n            element_id = int(element_id)\r\n        elif isinstance(element_id, str):\r\n            element_id = int(float(element_id.strip()))\r\n        return doc.GetElement(ElementId(element_id))\r\n    except:\r\n        return None\r\n\r\ndef update_parameter(element, param_name, param_value):\r\n    \"\"\"Cập nhật tham số kiểu text của phần tử Revit (instance hoặc type).\"\"\"\r\n    try:\r\n        # Tìm instance parameter\r\n        param = element.LookupParameter(param_name)\r\n        if not param:\r\n            # Tìm type parameter nếu instance không tồn tại\r\n            element_type = doc.GetElement(element.GetTypeId())\r\n            if element_type:\r\n                param = element_type.LookupParameter(param_name)\r\n        if not param:\r\n            return False\r\n        if param.IsReadOnly:\r\n            return False\r\n        TransactionManager.Instance.EnsureInTransaction(doc)\r\n        param.Set(str(param_value) if param_value is not None else \"\")\r\n        TransactionManager.Instance.TransactionTaskDone()\r\n        return True\r\n    except Exception as e:\r\n        return False\r\n\r\ndef process_excel_data(headers, data):\r\n    \"\"\"Xử lý dữ liệu Excel và cập nhật mô hình Revit.\"\"\"\r\n    results = []\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    \r\n    for row in data:\r\n        if \"Error\" in row:\r\n            results.append(row[\"Error\"])\r\n            continue\r\n        \r\n        element_id = row.get(\"Element_ID\")\r\n        element = get_element_by_id(element_id)\r\n        if not element:\r\n            pass\r\n            # results.append(\"Element_ID %s: Không tìm thấy phần tử\" % element_id)\r\n            # continue\r\n        \r\n        row_result = \"Element_ID %s: \" % element_id\r\n        param_results = []\r\n        for param_name in headers[1:]:  # Bỏ Element_ID\r\n            TransactionManager.Instance.EnsureInTransaction(doc)\r\n            param_value = row.get(param_name)\r\n            success, message = update_parameter(element, param_name, param_value)\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n            param_results.append(message)\r\n        \r\n        if param_results:\r\n            row_result += \"; \".join(param_results)\r\n        else:\r\n            row_result += \"Không có tham số nào được cập nhật\"\r\n        results.append(row_result)\r\n    \r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return results\r\ndef release_com(obj):\r\n    try:\r\n        Marshal.ReleaseComObject(obj)\r\n    except:\r\n        pass\r\n#endregion\r\n\r\n\r\nclass MainForm(Form):\r\n    def __init__(self):\r\n        self.InitializeComponent()\r\n    \r\n    def InitializeComponent(self):\r\n        # Lấy kích thước màn hình làm việc\r\n        screen_width = Screen.PrimaryScreen.WorkingArea.Width\r\n        screen_height = Screen.PrimaryScreen.WorkingArea.Height\r\n        \r\n        # Tính kích thước UI: 1/4 chiều ngang, 1/2 chiều cao\r\n        form_width = screen_width / 4\r\n        form_height = screen_height / 2\r\n        \r\n        self._btt_Run = System.Windows.Forms.Button()\r\n        self._btt_Cancle = System.Windows.Forms.Button()\r\n        self._grb_data = System.Windows.Forms.GroupBox()\r\n        self._btt_linkExcel = System.Windows.Forms.Button()\r\n        self._txb_linkExcel = System.Windows.Forms.TextBox()\r\n        self._lbl_D = System.Windows.Forms.Label()\r\n        self._lbl_WorkSheetName = System.Windows.Forms.Label()\r\n        self._comboBox1 = System.Windows.Forms.ComboBox()\r\n        self._grb_data.SuspendLayout()\r\n        self.SuspendLayout()\r\n        \r\n        # btt_Run\r\n        self._btt_Run.BackColor = System.Drawing.Color.FromArgb(255, 192, 255)\r\n        self._btt_Run.Font = System.Drawing.Font(\"Meiryo UI\", 15, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, 128)\r\n        self._btt_Run.Location = System.Drawing.Point(int(form_width * 0.401), int(form_height * 0.814))\r\n        self._btt_Run.Name = \"btt_Run\"\r\n        self._btt_Run.Size = System.Drawing.Size(int(form_width * 0.268), int(form_height * 0.131))\r\n        self._btt_Run.TabIndex = 0\r\n        self._btt_Run.Text = \"RUN\"\r\n        self._btt_Run.UseVisualStyleBackColor = False\r\n        self._btt_Run.Click += self.Btt_RunClick\r\n        \r\n        # btt_Cancle\r\n        self._btt_Cancle.BackColor = System.Drawing.Color.FromArgb(255, 192, 255)\r\n        self._btt_Cancle.Font = System.Drawing.Font(\"Meiryo UI\", 15, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, 128)\r\n        self._btt_Cancle.Location = System.Drawing.Point(int(form_width * 0.68), int(form_height * 0.814))\r\n        self._btt_Cancle.Name = \"btt_Cancle\"\r\n        self._btt_Cancle.Size = System.Drawing.Size(int(form_width * 0.29), int(form_height * 0.131))\r\n        self._btt_Cancle.TabIndex = 1\r\n        self._btt_Cancle.Text = \"CANCLE\"\r\n        self._btt_Cancle.UseVisualStyleBackColor = False\r\n        self._btt_Cancle.Click += self.Btt_CancleClick\r\n        \r\n        # grb_data\r\n        self._grb_data.Controls.Add(self._comboBox1)\r\n        self._grb_data.Controls.Add(self._lbl_WorkSheetName)\r\n        self._grb_data.Controls.Add(self._txb_linkExcel)\r\n        self._grb_data.Controls.Add(self._btt_linkExcel)\r\n        self._grb_data.Font = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, 128)\r\n        self._grb_data.Location = System.Drawing.Point(int(form_width * 0.026), int(form_height * 0.029))\r\n        self._grb_data.Name = \"grb_data\"\r\n        self._grb_data.Size = System.Drawing.Size(int(form_width * 0.948), int(form_height * 0.691))\r\n        self._grb_data.TabIndex = 2\r\n        self._grb_data.TabStop = False\r\n        self._grb_data.Text = \"data\"\r\n        \r\n        # btt_linkExcel\r\n        self._btt_linkExcel.BackColor = System.Drawing.Color.FromArgb(255, 192, 192)\r\n        self._btt_linkExcel.Font = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n        self._btt_linkExcel.Location = System.Drawing.Point(int(self._grb_data.Width * 0.013), int(self._grb_data.Height * 0.118))\r\n        self._btt_linkExcel.Name = \"btt_linkExcel\"\r\n        self._btt_linkExcel.Size = System.Drawing.Size(int(self._grb_data.Width * 0.298), int(self._grb_data.Height * 0.145))\r\n        self._btt_linkExcel.TabIndex = 3\r\n        self._btt_linkExcel.Text = \"Select Link\"\r\n        self._btt_linkExcel.UseVisualStyleBackColor = False\r\n        self._btt_linkExcel.Click += self.Btt_linkExcelClick\r\n        \r\n        # txb_linkExcel\r\n        self._txb_linkExcel.Font = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, 128)\r\n        self._txb_linkExcel.Location = System.Drawing.Point(int(self._grb_data.Width * 0.349), int(self._grb_data.Height * 0.167))\r\n        self._txb_linkExcel.Name = \"txb_linkExcel\"\r\n        self._txb_linkExcel.Size = System.Drawing.Size(int(self._grb_data.Width * 0.6), int(self._grb_data.Height * 0.064))\r\n        self._txb_linkExcel.TabIndex = 4\r\n        self._txb_linkExcel.TextChanged += self.Txb_linkExcelTextChanged\r\n        \r\n        # lbl_D\r\n        self._lbl_D.Font = System.Drawing.Font(\"Meiryo UI\", 6, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n        self._lbl_D.ForeColor = System.Drawing.Color.Blue\r\n        self._lbl_D.Location = System.Drawing.Point(int(form_width * 0.024), int(form_height * 0.929))\r\n        self._lbl_D.Name = \"lbl_D\"\r\n        self._lbl_D.Size = System.Drawing.Size(int(form_width * 0.085), int(form_height * 0.051))\r\n        self._lbl_D.TabIndex = 3\r\n        self._lbl_D.Text = \"@D\"\r\n        self._lbl_D.TextAlign = System.Drawing.ContentAlignment.MiddleCenter\r\n        \r\n        # lbl_WorkSheetName\r\n        self._lbl_WorkSheetName.BackColor = System.Drawing.Color.FromArgb(255, 192, 192)\r\n        self._lbl_WorkSheetName.Font = System.Drawing.Font(\"Meiryo UI\", 9, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n        self._lbl_WorkSheetName.Location = System.Drawing.Point(int(self._grb_data.Width * 0.013), int(self._grb_data.Height * 0.344))\r\n        self._lbl_WorkSheetName.Name = \"lbl_WorkSheetName\"\r\n        self._lbl_WorkSheetName.Size = System.Drawing.Size(int(self._grb_data.Width * 0.298), int(self._grb_data.Height * 0.122))\r\n        self._lbl_WorkSheetName.TabIndex = 5\r\n        self._lbl_WorkSheetName.Text = \"Work Sheet\"\r\n        self._lbl_WorkSheetName.TextAlign = System.Drawing.ContentAlignment.MiddleCenter\r\n        \r\n        # comboBox1\r\n        self._comboBox1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList\r\n        self._comboBox1.FormattingEnabled = True\r\n        self._comboBox1.Location = System.Drawing.Point(int(self._grb_data.Width * 0.349), int(self._grb_data.Height * 0.378))\r\n        self._comboBox1.Name = \"comboBox1\"\r\n        self._comboBox1.Size = System.Drawing.Size(int(self._grb_data.Width * 0.6), int(self._grb_data.Height * 0.087))\r\n        self._comboBox1.TabIndex = 6\r\n        self._comboBox1.UseWaitCursor = True\r\n        self._comboBox1.SelectedIndexChanged += self.ComboBox1SelectedIndexChanged\r\n        \r\n        \r\n        # MainForm\r\n        self.ClientSize = System.Drawing.Size(int(form_width), int(form_height))\r\n        self.Controls.Add(self._lbl_D)\r\n        self.Controls.Add(self._grb_data)\r\n        self.Controls.Add(self._btt_Cancle)\r\n        self.Controls.Add(self._btt_Run)\r\n        self.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n        self.Name = \"MainForm\"\r\n        self.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent\r\n        self.Text = \"nonParameter\"\r\n        self.TopMost = True\r\n        self._grb_data.ResumeLayout(False)\r\n        self._grb_data.PerformLayout()\r\n        self.ResumeLayout(False)\r\n\r\n    def Btt_linkExcelClick(self, sender, e):\r\n\r\n        dlg = OpenFileDialog()\r\n        dlg.Multiselect = False\r\n        dlg.Filter = \"Excel Files (*.xlsx)|*.xlsx\"\r\n        if dlg.ShowDialog() == DialogResult.OK:\r\n            path = dlg.FileName\r\n            self._txb_linkExcel.Text = path\r\n            \r\n            excel = workbook = None\r\n            try:\r\n                excel = Excel.ApplicationClass()\r\n                excel.Visible = False\r\n                workbook = excel.Workbooks.Open(path)\r\n                self._comboBox1.Items.Clear()\r\n                for ws in workbook.Worksheets:\r\n                    self._comboBox1.Items.Add(str(ws.Name))\r\n                if self._comboBox1.Items.Count > 0:\r\n                    self._comboBox1.SelectedIndex = 0\r\n            finally:\r\n                if workbook:\r\n                    workbook.Close(False)\r\n                    release_com(workbook)\r\n                if excel:\r\n                    excel.Quit()\r\n                    release_com(excel)\r\n    def Txb_linkExcelTextChanged(self, sender, e):\r\n        pass\r\n\r\n    def ComboBox1SelectedIndexChanged(self, sender, e):\r\n\r\n        pass\r\n\r\n    def Btt_RunClick(self, sender, e):\r\n        sheet_name = self._comboBox1.SelectedItem\r\n        file_path = self._txb_linkExcel.Text\r\n        if not file_path:\r\n            pass\r\n        else:\r\n            headers, data = read_excel_data(file_path, sheet_name)\r\n            if headers is None:\r\n                pass\r\n            else:\r\n                TransactionManager.Instance.EnsureInTransaction(doc)\r\n                results = process_excel_data(headers, data)\r\n                TransactionManager\r\n        self.Close()\r\n        pass\r\n\r\n    def Btt_CancleClick(self, sender, e):\r\n        self.Close()\r\n        pass\r\n\r\nf = MainForm()\r\nApplication.Run(f)\r\n",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "f3c538264226480294276e3767f0d077",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cfcca94380314aa881adc744855ea9b2",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "49197c2ec4c742b7b8d1692cc4325e0a",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "49197c2ec4c742b7b8d1692cc4325e0a",
+      "End": "f3c538264226480294276e3767f0d077",
+      "Id": "2d88770e73a24df5b1adb83520dfacb2",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+        "Name": "Automatically import Project Params Values by  Excel file",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 509.19999999999987,
+        "Y": 172.8000000000001
+      },
+      {
+        "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 94.4,
+        "Y": 162.40000000000006
+      }
+    ],
+    "Annotations": [],
+    "X": 0.0,
+    "Y": 0.0,
+    "Zoom": 1.0
+  }
+}

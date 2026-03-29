@@ -1,0 +1,190 @@
+{
+  "Uuid": "9e365bee-9473-4448-bdeb-84156b52a675",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "MatchSystem_script",
+  "ElementResolver": {
+    "ResolutionMap": {
+      "List": {
+        "Key": "List",
+        "Value": "BuiltIn.ds"
+      },
+      "Autodesk.Plane.DesignSript": {
+        "Key": "Autodesk.DesignScript.Geometry.Plane",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.Plane": {
+        "Key": "Autodesk.DesignScript.Geometry.Plane",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Geometry.Plane.DesignSript": {
+        "Key": "Autodesk.DesignScript.Geometry.Plane",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.Vector.Reverse": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.Vector": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Geometry.Vector.Reverse": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Vector.Reverse": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Vector": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      },
+      "Autodesk.DesignScript.Geometry.Vector": {
+        "Key": "Autodesk.DesignScript.Geometry.Vector",
+        "Value": "ProtoGeometry.dll"
+      }
+    }
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": true,
+      "Id": "7ea4a8eb0fac47eb8eb87ca72ce50576",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "aa70b2fb6b734f01bf6c3a96830e97e5",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nimport sys \r\nimport System   \r\nimport math\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB.Plumbing import*\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\"\"\"___\"\"\"\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\"\"\"___\"\"\"\r\nclass selectionFilter(ISelectionFilter):\r\n    def __init__(self,categories):\r\n        self.categories = categories\r\n    def AllowElement(self, element):\r\n        eleName = element.Category.Name in self.categories\r\n        return eleName\r\ndef pickPipeOrPipePart():\r\n    categories = ['Pipe Fittings', 'Pipe Accessories','Pipes']\r\n    fittingFilter = selectionFilter(categories)\r\n    ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, fittingFilter, 'Pick fitting or Accessory or Pipe')\r\n    desEle = doc.GetElement(ref.ElementId)\r\n    return desEle\r\ndef pickPipeOrPipeParts():\r\n\tpartList = []\r\n\tcategories = ['Pipe Fittings', 'Pipe Accessories','Pipes']\r\n\tfittingFilter = selectionFilter(categories)\r\n\trefs = uidoc.Selection.PickObjects(Autodesk.Revit.UI.Selection.ObjectType.Element, fittingFilter, 'Pick fitting or Accessory or Pipe')\r\n\tfor ref in refs:\r\n\t\tdesEle = doc.GetElement(ref.ElementId)\r\n\t\tpartList.append(desEle)\r\n\treturn partList\r\n\"\"\"___\"\"\"\r\n#pick pipe part. \r\nbasePart = pickPipeOrPipePart()\r\nlistSetPart = pickPipeOrPipeParts() \r\n#get base part piping system parameter\r\nbasePart_PipingSystem_check = basePart.LookupParameter('System Type')\r\nif basePart_PipingSystem_check != None:\r\n\tbasePart_PipingSystem = basePart_PipingSystem_check.AsElementId()\r\n\tfor part in listSetPart:\r\n\t\tupdatedPart = []\r\n\t\tpart_PipingSystem = part.LookupParameter('System Type')\r\n\t\tTransactionManager.Instance.EnsureInTransaction(doc)\r\n\t\tpart_PipingSystem.Set(basePart_PipingSystem)\r\n\t\tTransactionManager.Instance.TransactionTaskDone()\r\n\t\tupdatedPart.append(part)\r\nelse : pass\r\nOUT = listSetPart, updatedPart\r\n",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "5da6fb7422fd4276ae3fa8566b6732b2",
+      "Inputs": [
+        {
+          "Id": "798b1af4e88e4165b356d2716c14aac7",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "c71e4158c7354562b0db3a857df979fc",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "aa70b2fb6b734f01bf6c3a96830e97e5",
+      "End": "798b1af4e88e4165b356d2716c14aac7",
+      "Id": "bd17d00f67ac4858a26e62e1a13422a6",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": null,
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.17",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "4.0",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 10000.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.17.0.3472",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": 106665.71875,
+      "EyeY": 7260.81591796875,
+      "EyeZ": 3383.6015625,
+      "LookX": 4248.8125,
+      "LookY": -6110.81591796875,
+      "LookZ": 12274.2578125,
+      "UpX": -0.19948841631412506,
+      "UpY": -0.79228949546813965,
+      "UpZ": -0.57661235332489014
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Name": "Boolean",
+        "ShowGeometry": true,
+        "Id": "7ea4a8eb0fac47eb8eb87ca72ce50576",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": -2601.8302489736798,
+        "Y": 3680.2025016488637
+      },
+      {
+        "Name": "Hello World",
+        "ShowGeometry": true,
+        "Id": "5da6fb7422fd4276ae3fa8566b6732b2",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": -2395.6545417717425,
+        "Y": 3678.8971948203166
+      }
+    ],
+    "Annotations": [],
+    "X": 1987.1702277381119,
+    "Y": -2281.5912695093684,
+    "Zoom": 0.68328678792695285
+  }
+}

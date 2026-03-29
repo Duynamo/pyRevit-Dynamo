@@ -1,0 +1,170 @@
+{
+  "Uuid": "433f4019-b634-4ebf-9cf7-11fb34469fb9",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "scalePipe_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nfrom math import cos,sin,tan,radians\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList\r\nclass PipeSelectionFilter(ISelectionFilter):\r\n    def AllowElement(self, element):\r\n        category = element.Category\r\n        if category is None:\r\n            return False\r\n        return category.Name in [\"Pipes\", \"Pipe Fittings\", \"Pipe Accessories\"]\r\n    \r\n    def AllowReference(self, reference, position):\r\n        return False\r\n\r\n# Pick the element\r\ndef pickElement():\r\n    pipeFilter = PipeSelectionFilter()\r\n    ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter, \"Pick a pipe, fitting, or accessory\")\r\n    element = doc.GetElement(ref.ElementId)\r\n    return element\r\ndef sortConns_byConnected(element):\r\n    connectors = []\r\n    connectedConn = []\r\n    unConnectedConn = []\r\n    sortedConns = []\r\n    if element.Category.Name == \"Pipes\":\r\n        connectors = [conn for conn in element.ConnectorManager.Connectors]\r\n    else:\r\n        connectors = [conn for conn in element.MEPModel.ConnectorManager.Connectors]\r\n    for c in connectors:\r\n    \tif c.IsConnected:\r\n    \t\tconnectedConn.append(c)\r\n    \telse:\r\n    \t\tunConnectedConn.append(c)\r\n    if len(connectedConn) == 1:\r\n    \tsortedConns.append(connectedConn)\r\n    \tsortedConns.append(unConnectedConn)\r\n    if len(connectedConn) == 2:\r\n    \tsortedConns.append(connectedConn)\r\n    if len(connectedConn) == 0:\r\n    \tsortedConns.append(unConnectedConn)\r\n    return flatten(sortedConns)\r\ndef offsetPointAlongVector(point, vector, offsetDistance):\r\n    direction = vector.Normalize()\r\n    scaledVector = direction.Multiply(offsetDistance)\r\n    offsetPoint = point.Add(scaledVector)\r\n    return offsetPoint\r\n\r\n\r\n#endregion\r\n\r\n\r\nscaleLength = UnwrapElement(IN[0])\r\n\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\npipe = pickElement()\r\nsortedConns = sortConns_byConnected(pipe)\r\nsortedConnsOrigin = list(c.Origin for c in sortedConns)\r\nvector = (sortedConnsOrigin[1] - sortedConnsOrigin[0]).Normalize()\r\nscaleVector = vector.Multiply(scaleLength/304.8)\r\noffsetPoint = sortedConnsOrigin[1].Add(scaleVector)\r\nnewCurve = Line.CreateBound(sortedConnsOrigin[0], offsetPoint)\r\npipe.Location.Curve = newCurve\r\npipeType = pipe.PipeType\r\nlevel = doc.GetElement(pipe.LevelId)\r\n\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nnewPipe = pipe.Create(doc, pipeType.Id, pipe.MEPSystem.GetTypeId(), level.Id, offsetPoint, sortedConnsOrigin[1])\r\nnewPipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).Set(pipe.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble())\r\ndoc.Delete(pipe.Id)\r\nTransactionManager.Instance.TransactionTaskDone()\r\n\r\nOUT = newPipe\r\n",
+      "Engine": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "453b0632a9754e1bb272f34306a00947",
+      "Inputs": [
+        {
+          "Id": "c389874f7bc5455aaade15caa8e54f64",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "d39ed3af6e324551a38968838d7e134a",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": true,
+      "Id": "f9595c0f9f164e5a8a9bcedea53cd97a",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "72bc20ffa80945dcbf075298f89c7c1c",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Selection between a true and false."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nimport System\r\nclr.AddReference('System.Windows.Forms')\r\nclr.AddReference('System.Drawing')\r\nfrom System.Windows.Forms import Form, Label, TextBox, Button, DialogResult\r\nfrom System.Drawing import Point, Size, Font, FontStyle, GraphicsUnit, Color\r\n\r\n# Create a form\r\nclass MyForm(Form):\r\n    def __init__(self):\r\n        self.Text = 'inputAngle'\r\n        self.Size = Size(300, 180)\r\n        \r\n        # Set the font and text color for the controls inside the form\r\n        self.Font = Font(\"Meiryo UI\", 7.5, FontStyle.Bold, GraphicsUnit.Point, 128)\r\n        self.ForeColor = Color.Red\r\n\r\n        # Create and add label\r\n        self.label = Label()\r\n        self.label.Text = \"Sc_Length\"\r\n        self.label.Size = Size(260, 20)\r\n        self.label.Location = Point(10, 10)\r\n        self.Controls.Add(self.label)\r\n\r\n        # Create and add text box\r\n        self.textBox = TextBox()\r\n        self.textBox.Location = Point(10, 40)\r\n        self.textBox.Size = Size(260, 20)\r\n        self.Controls.Add(self.textBox)\r\n        self.textBox.Text = '1000'\r\n\r\n        # Create and add OK button\r\n        self.okButton = Button()\r\n        self.okButton.Text = 'OK'\r\n        self.okButton.Location = Point(110, 70)\r\n        self.okButton.Click += self.okButton_Click\r\n        self.Controls.Add(self.okButton)\r\n\r\n        # Create and add Cancel button\r\n        self.cancelButton = Button()\r\n        self.cancelButton.Text = 'Cancel'\r\n        self.cancelButton.Location = Point(200, 70)\r\n        self.cancelButton.Click += self.cancelButton_Click\r\n        self.Controls.Add(self.cancelButton)\r\n\r\n        # Create and add @FVC label at the bottom left\r\n        self.fvcLabel = Label()\r\n        self.fvcLabel.Text = \"@FVC\"\r\n        self.fvcLabel.Size = Size(50, 20)\r\n        self.fvcLabel.Location = Point(10, 110)  # Bottom left corner\r\n        self.Controls.Add(self.fvcLabel)\r\n\r\n        self.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D\r\n        self.result = None\r\n\r\n    def okButton_Click(self, sender, event):\r\n        self.result = self.textBox.Text\r\n        self.DialogResult = DialogResult.OK\r\n        self.Close()\r\n\r\n    def cancelButton_Click(self, sender, event):\r\n        self.DialogResult = DialogResult.Cancel\r\n        self.Close()\r\n\r\n# Show the form and get the result\r\nform = MyForm()\r\nresult = form.ShowDialog()\r\n\r\n# Output the result if OK was clicked\r\nif result == DialogResult.OK:\r\n    text_input = form.result\r\nelse:\r\n    text_input = None\r\n\r\nscaleLength = float(text_input)\r\n\r\n# Assign the result to Dynamo output\r\nOUT = scaleLength\r\n",
+      "Engine": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "7a55a398fbba413d9802f9e41a4c4015",
+      "Inputs": [
+        {
+          "Id": "e4850d3a63bb4587aecf28755e810970",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "949850a78b3d4ecb981a68b67f20c3ed",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "72bc20ffa80945dcbf075298f89c7c1c",
+      "End": "e4850d3a63bb4587aecf28755e810970",
+      "Id": "bf03e558edcb47e4a32737283ce8a1e4"
+    },
+    {
+      "Start": "949850a78b3d4ecb981a68b67f20c3ed",
+      "End": "c389874f7bc5455aaade15caa8e54f64",
+      "Id": "cbadeae6cf874beaaa7a645d329086c3"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.10.1.3976",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "NodeViews": [
+      {
+        "ShowGeometry": true,
+        "Name": "Scale Pipe",
+        "Id": "453b0632a9754e1bb272f34306a00947",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 394.8581602373888,
+        "Y": 38.974480712166184
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Boolean",
+        "Id": "f9595c0f9f164e5a8a9bcedea53cd97a",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": -35.271216617210627,
+        "Y": 24.783382789317471
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "userInputScaleLength",
+        "Id": "7a55a398fbba413d9802f9e41a4c4015",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 148.92818991097928,
+        "Y": 36.175667655786526
+      }
+    ],
+    "Annotations": [],
+    "X": 200.928,
+    "Y": 85.5219999999999,
+    "Zoom": 0.8425
+  }
+}

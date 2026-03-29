@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "Clear Params(bySelect)_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n# Import tất cả các thư viện cần thiết\r\nimport clr\r\nimport sys\r\nimport System\r\nimport math\r\nimport collections\r\nimport os\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.DB.Structure import *\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\")\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import *\r\n\r\nclr.AddReference(\"System\")\r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\nimport System.Windows.Forms\r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\r\nclr.AddReference(\"Microsoft.Office.Interop.Excel\")\r\nfrom Microsoft.Office.Interop import Excel\r\nimport System.Runtime.InteropServices\r\n\r\n# Khởi tạo các biến Revit cơ bản\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\r\nclass DeleteParamForm(Form):\r\n    def __init__(self, param_names):\r\n        primary_screen = Screen.PrimaryScreen.WorkingArea\r\n        screen_width = primary_screen.Width // 3\r\n        screen_height = primary_screen.Height // 2\r\n        \r\n        self.Text = 'Parameters'\r\n        self.ClientSize = Size(screen_width, screen_height)\r\n        self.StartPosition = FormStartPosition.CenterScreen\r\n        self.FormBorderStyle = FormBorderStyle.FixedDialog\r\n        self.MaximizeBox = False\r\n        \r\n        # Label\r\n        self.label = Label()\r\n        self.label.Text = \"Select Parameters to Delete\"\r\n        self.label.Location = Point(20, 20)\r\n        self.label.AutoSize = True\r\n        self.Controls.Add(self.label)\r\n        \r\n        # CheckedListBox\r\n        self.checkedListBox = CheckedListBox()\r\n        self.checkedListBox.Location = Point(20, 50)\r\n        self.checkedListBox.Size = Size(screen_width - 60, screen_height - 150)\r\n        self.checkedListBox.CheckOnClick = True\r\n        for name in sorted(param_names):\r\n            self.checkedListBox.Items.Add(name, False)\r\n        self.Controls.Add(self.checkedListBox)\r\n        \r\n        # Run Button\r\n        self.runButton = Button()\r\n        self.runButton.Text = 'Delete'\r\n        self.runButton.Location = Point(20, screen_height - 80)\r\n        self.runButton.Size = Size(120, 40)\r\n        self.runButton.DialogResult = DialogResult.OK\r\n        self.Controls.Add(self.runButton)\r\n        \r\n        # Cancel Button\r\n        self.cancelButton = Button()\r\n        self.cancelButton.Text = 'Cancle'\r\n        self.cancelButton.Location = Point(150, screen_height - 80)\r\n        self.cancelButton.Size = Size(120, 40)\r\n        self.cancelButton.DialogResult = DialogResult.Cancel\r\n        self.Controls.Add(self.cancelButton)\r\n        \r\n        self.AcceptButton = self.runButton\r\n        self.CancelButton = self.cancelButton\r\n\r\n# Chỉ lấy các project parameter do người dùng tạo (loại bỏ built-in)\r\nparam_elements = FilteredElementCollector(doc).OfClass(ParameterElement).ToElements()\r\n\r\nuser_param_names = []\r\nparam_dict = {}  # Lưu mapping name → ParameterElement để xóa sau\r\n\r\nfor pe in param_elements:\r\n    defi = pe.GetDefinition()\r\n    if defi and defi.BuiltInParameter == BuiltInParameter.INVALID:\r\n        name = defi.Name\r\n        user_param_names.append(name)\r\n        param_dict[name] = pe  # Lưu để lấy Id sau\r\n\r\nif not user_param_names:\r\n    OUT = \"Không có project parameter nào do người dùng tạo.\"\r\nelse:\r\n    form = DeleteParamForm(sorted(user_param_names))\r\n    if form.ShowDialog() != DialogResult.OK:\r\n        OUT = \"Cancled\"\r\n    else:\r\n        selected_names = [form.checkedListBox.Items[i] for i in form.checkedListBox.CheckedIndices]\r\n        if not selected_names:\r\n            OUT = \"Selected None\"\r\n        else:\r\n            t = Transaction(doc, \"Xóa các parameter đã chọn\")\r\n            t.Start()\r\n            \r\n            ids_to_delete = [param_dict[name].Id for name in selected_names if name in param_dict]\r\n            \r\n            if ids_to_delete:\r\n                for i in ids_to_delete:\r\n                    doc.Delete(i)  # Xóa hàng loạt hiệu quả hơn\r\n            \r\n            t.Commit()\r\n            OUT = \"Done\"",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "f3c538264226480294276e3767f0d077",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cfcca94380314aa881adc744855ea9b2",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "49197c2ec4c742b7b8d1692cc4325e0a",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "49197c2ec4c742b7b8d1692cc4325e0a",
+      "End": "f3c538264226480294276e3767f0d077",
+      "Id": "2d88770e73a24df5b1adb83520dfacb2",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+        "Name": "Clear Params",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 508.39999999999992,
+        "Y": 172.8000000000001
+      },
+      {
+        "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 94.4,
+        "Y": 162.40000000000006
+      }
+    ],
+    "Annotations": [],
+    "X": 0.0,
+    "Y": 0.0,
+    "Zoom": 1.0
+  }
+}
