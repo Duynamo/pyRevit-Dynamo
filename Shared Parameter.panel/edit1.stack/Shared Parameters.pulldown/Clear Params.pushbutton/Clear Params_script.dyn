@@ -11,12 +11,12 @@
   "Nodes": [
     {
       "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
-      "NodeType": "PythonScriptNode",
       "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n# Import tất cả các thư viện cần thiết\r\nimport clr\r\nimport sys\r\nimport System\r\nimport math\r\nimport collections\r\nimport os\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.DB.Structure import *\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\")\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import *\r\n\r\nclr.AddReference(\"System\")\r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\nimport System.Windows.Forms\r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\r\nclr.AddReference(\"Microsoft.Office.Interop.Excel\")\r\nfrom Microsoft.Office.Interop import Excel\r\nimport System.Runtime.InteropServices\r\n\r\n# Khởi tạo các biến Revit cơ bản\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\r\nclass ParaProj():\r\n    def __init__(self, definition, binding):\r\n        self.definition = definition\r\n        self.binding = binding\r\n        self.defName = definition.Name if definition else \"None\"\r\n        self.group_label = LabelUtils.GetLabelFor(definition.ParameterGroup) if definition else \"Unknown\"\r\n        self.group_id = definition.ParameterGroup if definition else None\r\n        self.type = \"Instance\" if isinstance(binding, InstanceBinding) else \"Type\"\r\n        self.thesecats = []\r\n        \r\n        if binding and binding.Categories:\r\n            for cat in binding.Categories:\r\n                try:\r\n                    self.thesecats.append(cat.Name)\r\n                except:\r\n                    self.thesecats.append(\"Unknown Category\")\r\n\r\n    @property\r\n    def isShared(self):\r\n        if not self.definition:\r\n            return False\r\n        coll = FilteredElementCollector(doc).OfClass(SharedParameterElement).ToElements()\r\n        shared_names = {sp.GetDefinition().Name for sp in coll}\r\n        return self.defName in shared_names\r\n\r\n\r\n# === PHẦN 1: LẤY TẤT CẢ PROJECT PARAMETER ===\r\npara_list = []\r\niterator = doc.ParameterBindings.ForwardIterator()\r\niterator.Reset()  # Bắt buộc!\r\n\r\nwhile iterator.MoveNext():\r\n    definition = iterator.Key\r\n    binding = iterator.Current\r\n    if definition:\r\n        para_list.append(ParaProj(definition, binding))\r\n\r\n# === PHẦN 2: LỌC VÀ XÓA TẤT CẢ PARAMETER THUỘC NHÓM \"Data\" (PG_DATA) ===\r\nt = Transaction(doc, \"Xóa tất cả Project Parameter nhóm Data\")\r\nt.Start()\r\n\r\ndeleted_count = 0\r\ndefinitions_to_remove = []\r\n\r\nfor para in para_list:\r\n    # Kiểm tra chính xác bằng BuiltInParameterGroup.PG_DATA\r\n    if para.group_id == BuiltInParameterGroup.PG_DATA:\r\n        definitions_to_remove.append(para.definition)\r\n        deleted_count += 1\r\n\r\n# Xóa binding\r\nfor defi in definitions_to_remove:\r\n    try:\r\n        doc.ParameterBindings.Remove(defi)\r\n    except:\r\n        pass  # Bỏ qua nếu Revit từ chối (rất hiếm)\r\n\r\nt.Commit()\r\n\r\n# === KẾT QUẢ TRẢ VỀ ===\r\nif deleted_count > 0:\r\n    OUT = \"Hello World\"\r\nelse:\r\n    OUT = \"Không tìm thấy Project Parameter nào thuộc nhóm 'Data' để xóa.\"\r\n",
       "Engine": "IronPython2",
       "EngineName": "IronPython2",
       "VariableInputPorts": true,
       "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+      "NodeType": "PythonScriptNode",
       "Inputs": [
         {
           "Id": "f3c538264226480294276e3767f0d077",
@@ -44,9 +44,8 @@
     },
     {
       "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
-      "NodeType": "BooleanInputNode",
-      "InputValue": true,
       "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+      "NodeType": "BooleanInputNode",
       "Inputs": [],
       "Outputs": [
         {
@@ -60,7 +59,8 @@
         }
       ],
       "Replication": "Disabled",
-      "Description": "Enables selection between True and False"
+      "Description": "Enables selection between True and False",
+      "InputValue": false
     }
   ],
   "Connectors": [
@@ -102,7 +102,7 @@
       "ScaleFactor": 1.0,
       "HasRunWithoutCrash": true,
       "IsVisibleInDynamoLibrary": true,
-      "Version": "2.17.0.3472",
+      "Version": "2.19.3.6394",
       "RunType": "Automatic",
       "RunPeriod": "1000"
     },
@@ -121,22 +121,22 @@
     "ConnectorPins": [],
     "NodeViews": [
       {
-        "Name": "Clear Params",
-        "ShowGeometry": true,
         "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+        "Name": "Clear Params",
         "IsSetAsInput": false,
         "IsSetAsOutput": false,
         "Excluded": false,
+        "ShowGeometry": true,
         "X": 508.39999999999992,
         "Y": 172.8000000000001
       },
       {
-        "Name": "Boolean",
-        "ShowGeometry": true,
         "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+        "Name": "Boolean",
         "IsSetAsInput": false,
         "IsSetAsOutput": false,
         "Excluded": false,
+        "ShowGeometry": true,
         "X": 94.4,
         "Y": 162.40000000000006
       }

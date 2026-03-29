@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "IsolateByID_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\n# -*- coding: utf-8 -*-\r\nimport clr\r\nimport sys\r\nimport System\r\nimport math\r\nimport collections\r\nimport os\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\ntry:\r\n    from Autodesk.Revit.DB.Structure import *\r\nexcept:\r\n    pass\r\n\r\nclr.AddReference(\"RevitAPIUI\")\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import *\r\n\r\nclr.AddReference(\"System\")\r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nimport System.Windows.Forms\r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n\"\"\"___\"\"\"\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\"\"\"___\"\"\"\r\n\r\ndef alert(message, title=\"Notification\"):\r\n    System.Windows.Forms.MessageBox.Show(message, title, System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information)\r\n\r\ndef get_hidden_excel(file_path):\r\n    excel_type = System.Type.GetTypeFromProgID(\"Excel.Application\")\r\n    if excel_type is None:\r\n        raise Exception(\"Excel is not installed or COM registry is missing.\")\r\n        \r\n    excel = System.Activator.CreateInstance(excel_type)\r\n    excel.Visible = False\r\n    excel.ScreenUpdating = False\r\n    excel.DisplayAlerts = False\r\n    \r\n    try:\r\n        workbook = excel.Workbooks.Open(file_path)\r\n        return excel, workbook\r\n    except Exception as e:\r\n        try:\r\n            excel.Quit()\r\n        except:\r\n            pass\r\n        raise e\r\n\r\ndef select_excel_file():\r\n    dialog = OpenFileDialog()\r\n    dialog.Filter = \"Excel Files (*.xlsx)|*.xlsx|All Files (*.*)|*.*\"\r\n    dialog.Title = \"Select Excel file with ElementIDs\"\r\n    if dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK:\r\n        return dialog.FileName\r\n    return None\r\n\r\ndef extract_element_ids_from_excel(file_path):\r\n    if not os.path.exists(file_path):\r\n        return None, \"Error: File '%s' does not exist.\" % file_path\r\n    \r\n    excel = None\r\n    workbook = None\r\n    try:\r\n        excel, workbook = get_hidden_excel(file_path)\r\n        \r\n        # Mở đúng Sheet tên 'ElementID'\r\n        sheet = None\r\n        for i in range(1, workbook.Worksheets.Count + 1):\r\n            name = str(workbook.Worksheets(i).Name)\r\n            if name.strip().lower() == \"elementid\":\r\n                sheet = workbook.Worksheets(i)\r\n                break\r\n                \r\n        # Nếu không có sheet tên ElementID, fallback sang sheet đầu tiên\r\n        if sheet is None:\r\n            if workbook.Worksheets.Count > 0:\r\n                sheet = workbook.Worksheets(1)\r\n            else:\r\n                return None, \"Excel file is completely empty.\"\r\n        \r\n        # Ưu tiên cứng cột B (Index = 2) theo yêu cầu User\r\n        target_col_index = 2\r\n        \r\n        # Double check xem nếu cột B trống tiêu đề thì dò tìm lại\r\n        header_val = sheet.Cells(1, 2).Value2\r\n        if header_val is None or \"elementid\" not in str(header_val).strip().lower():\r\n            for i in range(1, 10):\r\n                v = sheet.Cells(1, i).Value2\r\n                if v is not None and \"elementid\" in str(v).strip().lower():\r\n                    target_col_index = i\r\n                    break\r\n        \r\n        # Cào đúng dòng cuối cùng có chứa data thực thụ (End xlUp)\r\n        try:\r\n            last_row = sheet.Cells(sheet.Rows.Count, target_col_index).End(-4162).Row\r\n        except:\r\n            last_row = sheet.UsedRange.Rows.Count\r\n        \r\n        if last_row < 2:\r\n            return None, \"Sheet '%s' does not have any data rows.\" % sheet.Name\r\n            \r\n        ids = []\r\n        # Chạy từ dòng 2 xuống dòng chứa data cuối cùng\r\n        for r in range(2, last_row + 1):\r\n            val = sheet.Cells(r, target_col_index).Value2\r\n            if val is not None and str(val).strip() != \"\":\r\n                ids.append(str(val).strip())\r\n                \r\n        if not ids:\r\n            return None, \"No valid IDs were found in column B (index %s).\" % target_col_index\r\n            \r\n        return ids, None\r\n        \r\n    except Exception as e:\r\n        return None, \"Error reading Excel file: \" + str(e)\r\n    finally:\r\n        if workbook is not None:\r\n            try:\r\n                workbook.Close(False)\r\n            except:\r\n                pass\r\n        if excel is not None:\r\n            try:\r\n                excel.Quit()\r\n            except:\r\n                pass\r\n\r\ndef get_element_id_object(id_str):\r\n    \"\"\"Safe Parsing for ElementID in Revit 2024 (Int64) and below (Int32)\"\"\"\r\n    try:\r\n        if isinstance(id_str, float):\r\n            id_val = int(id_str)\r\n        elif isinstance(id_str, str):\r\n            id_val = int(float(id_str.strip()))\r\n        else:\r\n            id_val = int(id_str)\r\n            \r\n        # Try primary creation (Revit 2024 uses Int64, 2023 uses Int32)\r\n        try:\r\n            return ElementId(id_val)\r\n        except:\r\n            import System\r\n            return ElementId(System.Int64(id_val))\r\n    except:\r\n        return None\r\n\r\ndef isolate_elements(id_list):\r\n    if not view:\r\n        return False, \"There is no active view available.\"\r\n\r\n    if not view.CanEnableTemporaryViewPropertiesMode():\r\n        return False, \"This active View Type does not support Temporary Isolate/Hide.\"\r\n        \r\n    valid_ids = List[ElementId]()\r\n    for id_str in id_list:\r\n        eid = get_element_id_object(id_str)\r\n        if eid is not None:\r\n            el = doc.GetElement(eid)\r\n            # Chỉ lấy các Element thực sự còn sống trên model\r\n            if el is not None:\r\n                valid_ids.Add(eid)\r\n                \r\n    if valid_ids.Count == 0:\r\n        return False, \"None of the Element IDs extracted from Excel actually exist in this project.\"\r\n        \r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    try:\r\n        # Nếu đang có cách Isolate khác, reset đi trước\r\n        if view.IsTemporaryHideIsolateActive():\r\n            view.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate)\r\n            \r\n        # Kích hoạt Isolate\r\n        view.IsolateElementsTemporary(valid_ids)\r\n        \r\n        TransactionManager.Instance.TransactionTaskDone()\r\n        return True, \"Successfully ISOLATED {} element(s) in current view.\".format(valid_ids.Count)\r\n    except Exception as e:\r\n        TransactionManager.Instance.ForceCloseTransaction()\r\n        return False, \"Failed to isolate elements: \" + str(e)\r\n\r\n\r\n# ================= THE MAIN RUN LOGIC ================= #\r\nOUT = \"No operation has been completed yet.\"\r\nexcelPath = select_excel_file()\r\n\r\nif excelPath:\r\n    raw_ids, error_msg = extract_element_ids_from_excel(excelPath)\r\n    \r\n    if error_msg:\r\n        alert(error_msg, \"System Error\")\r\n        OUT = error_msg\r\n    elif raw_ids:\r\n        # Thực hiện Isolate ID lên Revit Model\r\n        success, message = isolate_elements(raw_ids)\r\n        if success:\r\n            alert(message, \"Success\")\r\n            OUT = message\r\n        else:\r\n            alert(message, \"Isolation Failed\")\r\n            OUT = message\r\n    else:\r\n        alert(\"Excel file read successfully but no ID data was found.\", \"Empty Result\")\r\nelse:\r\n    OUT = \"Excel file was not selected.\"\r\n",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "f3c538264226480294276e3767f0d077",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cfcca94380314aa881adc744855ea9b2",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "49197c2ec4c742b7b8d1692cc4325e0a",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "49197c2ec4c742b7b8d1692cc4325e0a",
+      "End": "f3c538264226480294276e3767f0d077",
+      "Id": "2d88770e73a24df5b1adb83520dfacb2",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "4e93789a2d0e4059ba95ba06546ab9fb",
+        "Name": "IsolateByID",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 361.99999999999983,
+        "Y": 161.60000000000011
+      },
+      {
+        "Id": "b4b238e8ac554b7ebd4657cf35952ef3",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 94.4,
+        "Y": 162.40000000000006
+      }
+    ],
+    "Annotations": [],
+    "X": 0.0,
+    "Y": 0.0,
+    "Zoom": 1.0
+  }
+}
