@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "selectAllElementInView_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys\r\nimport System\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import *\r\n\r\nclr.AddReference(\"System\") \r\nclr.AddReference(\"System.Data\")\r\nfrom System.Collections.Generic import List\r\nfrom System.Data import DataTable\r\n\r\nclr.AddReference(\"PresentationFramework\")\r\nclr.AddReference(\"PresentationCore\")\r\nclr.AddReference(\"WindowsBase\")\r\nfrom System.Windows.Markup import XamlReader\r\nfrom System.Windows import Window, MessageBox, MessageBoxButton, MessageBoxImage\r\n\r\n# Khởi tạo các biến Revit cơ bản cho môi trường Dynamo (IronPython)\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = uiapp.ActiveUIDocument\r\n\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region XAML UI Definition\r\nWPF_XAML = u\"\"\"\r\n<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\r\n        xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\r\n        Title=\"Category Visibility &amp; Selection Manager\" \r\n        Width=\"450\" Height=\"600\" \r\n        WindowStartupLocation=\"CenterScreen\" \r\n        Background=\"#F5F6F8\" FontFamily=\"Segoe UI\" FontSize=\"13\"\r\n        Topmost=\"True\">\r\n    <Window.Resources>\r\n        <Style x:Key=\"ModernBtn\" TargetType=\"Button\">\r\n            <Setter Property=\"Foreground\" Value=\"White\"/>\r\n            <Setter Property=\"BorderThickness\" Value=\"0\"/>\r\n            <Setter Property=\"Padding\" Value=\"10,5\"/>\r\n            <Setter Property=\"Cursor\" Value=\"Hand\"/>\r\n            <Setter Property=\"FontWeight\" Value=\"SemiBold\"/>\r\n        </Style>\r\n    </Window.Resources>\r\n\r\n    <Grid Margin=\"15\">\r\n        <Grid.RowDefinitions>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"*\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n        </Grid.RowDefinitions>\r\n\r\n        <Grid Grid.Row=\"0\" Margin=\"0,0,0,10\">\r\n            <Grid.ColumnDefinitions>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"*\"/>\r\n            </Grid.ColumnDefinitions>\r\n            <Button Name=\"btnCheckAll\" Grid.Column=\"0\" Content=\"Check All\" Style=\"{StaticResource ModernBtn}\" Background=\"#0078D7\" Width=\"90\" Margin=\"0,0,10,0\"/>\r\n            <Button Name=\"btnUncheckAll\" Grid.Column=\"1\" Content=\"Uncheck All\" Style=\"{StaticResource ModernBtn}\" Background=\"#555555\" Width=\"90\" Margin=\"0,0,10,0\"/>\r\n            <TextBox Name=\"txtSearch\" Grid.Column=\"2\" Padding=\"5,0\" VerticalContentAlignment=\"Center\" ToolTip=\"Tìm kiếm Category...\"/>\r\n        </Grid>\r\n\r\n        <DataGrid Name=\"dgCategories\" Grid.Row=\"1\" AutoGenerateColumns=\"False\" CanUserAddRows=\"False\" CanUserDeleteRows=\"False\" HeadersVisibility=\"Column\" SelectionMode=\"Single\" SelectionUnit=\"FullRow\" GridLinesVisibility=\"Horizontal\" HorizontalGridLinesBrush=\"#E8E8E8\" RowBackground=\"White\" AlternatingRowBackground=\"#F9F9F9\" BorderBrush=\"#DDDDDD\" BorderThickness=\"1\">\r\n            <DataGrid.Columns>\r\n                <DataGridTemplateColumn Header=\"✓\" Width=\"40\">\r\n                    <DataGridTemplateColumn.CellTemplate>\r\n                        <DataTemplate>\r\n                            <CheckBox IsChecked=\"{Binding [IsChecked], UpdateSourceTrigger=PropertyChanged}\" HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/>\r\n                        </DataTemplate>\r\n                    </DataGridTemplateColumn.CellTemplate>\r\n                </DataGridTemplateColumn>\r\n                <DataGridTextColumn Header=\"Category Name\" Binding=\"{Binding [Name]}\" Width=\"*\" IsReadOnly=\"True\"/>\r\n            </DataGrid.Columns>\r\n        </DataGrid>\r\n\r\n        <Grid Grid.Row=\"2\" Margin=\"0,15,0,0\">\r\n            <Grid.ColumnDefinitions>\r\n                <ColumnDefinition Width=\"*\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n            </Grid.ColumnDefinitions>\r\n            \r\n            <Button Name=\"btnSelect\" Grid.Column=\"1\" Content=\"Select\" Width=\"90\" Height=\"35\" Margin=\"0,0,10,0\" Style=\"{StaticResource ModernBtn}\" Background=\"#0078D7\"/>\r\n            <Button Name=\"btnIsolate\" Grid.Column=\"2\" Content=\"Isolate\" Width=\"90\" Height=\"35\" Margin=\"0,0,10,0\" Style=\"{StaticResource ModernBtn}\" Background=\"#107C10\"/>\r\n            <Button Name=\"btnCancel\" Grid.Column=\"3\" Content=\"Cancel\" Width=\"90\" Height=\"35\" Style=\"{StaticResource ModernBtn}\" Background=\"#A80000\"/>\r\n        </Grid>\r\n    </Grid>\r\n</Window>\r\n\"\"\"\r\n#endregion\r\n\r\n#region ___Logic Backend\r\ndef getAllModelCategories(document):\r\n    \"\"\"\r\n    Lấy tất cả các Model Categories hợp lệ trong dự án và sắp xếp theo bảng chữ cái.\r\n    \"\"\"\r\n    categories = document.Settings.Categories\r\n    model_cats = []\r\n    for cat in categories:\r\n        try:\r\n            # Lọc chỉ lấy CategoryType.Model và có thể gán Subcategory (loại bỏ các mục ảo)\r\n            if cat.CategoryType == CategoryType.Model and cat.CanAddSubcategory:\r\n                model_cats.append(cat)\r\n        except:\r\n            pass\r\n    \r\n    # Sắp xếp theo tên từ điển\r\n    model_cats.sort(key=lambda c: c.Name)\r\n    return model_cats\r\n#endregion\r\n\r\n#region ___WPF UI Class\r\nclass CategoryManagerWindow(object):\r\n    def __init__(self, doc_ref, uidoc_ref, view_ref):\r\n        self.doc = doc_ref\r\n        self.uidoc = uidoc_ref\r\n        self.view = view_ref\r\n        \r\n        self.window = XamlReader.Parse(WPF_XAML)\r\n        self._find_controls()\r\n        self._bind_events()\r\n        \r\n        # Setup DataTable\r\n        self.dt_cats = DataTable(\"Categories\")\r\n        self.dt_cats.Columns.Add(\"IsChecked\", System.Boolean)\r\n        self.dt_cats.Columns.Add(\"Name\", System.String)\r\n        self.dt_cats.Columns.Add(\"Id\", System.Object) # Lưu ElementId\r\n        \r\n        self.dgCategories.ItemsSource = self.dt_cats.DefaultView\r\n        self.LoadCategories()\r\n\r\n    def _find(self, name):\r\n        return self.window.FindName(name)\r\n\r\n    def _find_controls(self):\r\n        self.btnCheckAll = self._find(\"btnCheckAll\")\r\n        self.btnUncheckAll = self._find(\"btnUncheckAll\")\r\n        self.txtSearch = self._find(\"txtSearch\")\r\n        self.dgCategories = self._find(\"dgCategories\")\r\n        self.btnSelect = self._find(\"btnSelect\")\r\n        self.btnIsolate = self._find(\"btnIsolate\")\r\n        self.btnCancel = self._find(\"btnCancel\")\r\n\r\n    def _bind_events(self):\r\n        self.btnCheckAll.Click += self.OnCheckAll\r\n        self.btnUncheckAll.Click += self.OnUncheckAll\r\n        self.txtSearch.TextChanged += self.OnSearchTextChanged\r\n        self.btnSelect.Click += self.OnSelect\r\n        self.btnIsolate.Click += self.OnIsolate\r\n        self.btnCancel.Click += self.OnCancel\r\n\r\n    def LoadCategories(self):\r\n        \"\"\"Tải dữ liệu categories vào DataTable\"\"\"\r\n        categories = getAllModelCategories(self.doc)\r\n        for cat in categories:\r\n            row = self.dt_cats.NewRow()\r\n            row[\"IsChecked\"] = False\r\n            row[\"Name\"] = cat.Name\r\n            row[\"Id\"] = cat.Id\r\n            self.dt_cats.Rows.Add(row)\r\n\r\n    def OnSearchTextChanged(self, sender, e):\r\n        search_text = self.txtSearch.Text.strip()\r\n        if search_text:\r\n            # Lọc theo trường Name, hỗ trợ không phân biệt chữ hoa/thường\r\n            self.dt_cats.DefaultView.RowFilter = \"Name LIKE '%{}%'\".format(search_text)\r\n        else:\r\n            self.dt_cats.DefaultView.RowFilter = \"\"\r\n\r\n    def OnCheckAll(self, sender, e):\r\n        for row_view in self.dt_cats.DefaultView:\r\n            row_view.Row[\"IsChecked\"] = True\r\n        self.dgCategories.Items.Refresh()\r\n\r\n    def OnUncheckAll(self, sender, e):\r\n        for row_view in self.dt_cats.DefaultView:\r\n            row_view.Row[\"IsChecked\"] = False\r\n        self.dgCategories.Items.Refresh()\r\n\r\n    def GetSelectedCategoryIds(self):\r\n        \"\"\"Trả về danh sách List[ElementId] của các category được chọn.\"\"\"\r\n        cat_ids = List[ElementId]()\r\n        for row in self.dt_cats.Rows:\r\n            if row[\"IsChecked\"]:\r\n                cat_ids.Add(row[\"Id\"])\r\n        return cat_ids\r\n\r\n    def OnSelect(self, sender, e):\r\n        try:\r\n            cat_ids = self.GetSelectedCategoryIds()\r\n            if cat_ids.Count == 0:\r\n                MessageBox.Show(\"Vui lòng tick chọn ít nhất một Category để Select!\", \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n                return\r\n\r\n            # Tạo bộ lọc ElementMulticategoryFilter\r\n            cat_filter = ElementMulticategoryFilter(cat_ids)\r\n            collector = FilteredElementCollector(self.doc, self.view.Id)\r\n            collector.WherePasses(cat_filter).WhereElementIsNotElementType()\r\n            \r\n            element_ids = collector.ToElementIds()\r\n\r\n            if element_ids.Count == 0:\r\n                MessageBox.Show(\"Không tìm thấy đối tượng nào thuộc các Categories đã chọn trong View hiện hành!\", \"Info\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n            else:\r\n                self.uidoc.Selection.SetElementIds(element_ids)\r\n                self.window.Close()\r\n        except Exception as ex:\r\n            MessageBox.Show(\"Lỗi trong quá trình Select:\\n\" + str(ex), \"Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n\r\n    def OnIsolate(self, sender, e):\r\n        try:\r\n            cat_ids = self.GetSelectedCategoryIds()\r\n            if cat_ids.Count == 0:\r\n                MessageBox.Show(\"Vui lòng tick chọn ít nhất một Category để Isolate!\", \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n                return\r\n\r\n            # Isolate yêu cầu thay đổi View nên cần thực thi Transaction\r\n            t = Transaction(self.doc, \"Isolate Categories Temporary\")\r\n            t.Start()\r\n            try:\r\n                self.view.IsolateCategoriesTemporary(cat_ids)\r\n                t.Commit()\r\n                self.window.Close()\r\n            except Exception as ex:\r\n                t.RollBack()\r\n                MessageBox.Show(\"Không thể Isolate:\\n\" + str(ex), \"Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n        except Exception as ex:\r\n            MessageBox.Show(\"Lỗi trong quá trình khởi tạo Isolate:\\n\" + str(ex), \"Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n\r\n    def OnCancel(self, sender, e):\r\n        self.window.Close()\r\n\r\n    def show(self):\r\n        self.window.ShowDialog()\r\n#endregion\r\n\r\n\r\ndef main():\r\n    app = CategoryManagerWindow(doc, uidoc, view)\r\n    app.show()\r\n\r\n# Execute directly in Dynamo Environment\r\nmain()\r\nOUT = \"Success\"",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "Name": "Hello World",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 616.31280816467574,
+        "Y": 155.16525259722212
+      },
+      {
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 240.02555328359944,
+        "Y": 157.53500035177109
+      }
+    ],
+    "Annotations": [],
+    "X": 66.320928429214746,
+    "Y": 76.59637572403409,
+    "Zoom": 0.78436932804482706
+  }
+}
