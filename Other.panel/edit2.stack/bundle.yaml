@@ -1,2 +1,7 @@
+title:
+  ru: VN
+  fr_fr: Duynamo
+  en_us: DIM
 layout:
-  - isometricDIM
+  - workPlanFrom1PipePart
+  - workPlanFrom2PipePart

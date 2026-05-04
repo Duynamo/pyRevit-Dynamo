@@ -1,0 +1,173 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "ColorStructure",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "# -*- coding: utf-8 -*-\r\n\"\"\"\r\nChange Color & Transparency for Structural Elements in Active View\r\nTuân thủ quy trình xử lý lỗi: Validate -> Transaction -> Try Apply -> Commit / Rollback\r\n\"\"\"\r\n\r\nimport clr\r\nimport traceback\r\nimport sys\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nclr.AddReference(\"RevitAPIUI\")\r\nimport Autodesk.Revit.DB as DB\r\nimport Autodesk.Revit.UI as UI\r\n\r\nclr.AddReference(\"PresentationFramework\")\r\nclr.AddReference(\"PresentationCore\")\r\nclr.AddReference(\"WindowsBase\")\r\nimport System.Windows\r\nfrom System.Windows.Markup import XamlReader\r\nfrom System.Windows import MessageBox, MessageBoxButton, MessageBoxImage\r\nfrom System.Windows.Media import Color as WpfColor, SolidColorBrush\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\n\r\n# ─── REVIT CONTEXT ─────────────────────────────────────────────────────────\r\ndoc   = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp   = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview  = doc.ActiveView\r\n\r\n\r\n# ─── XAML GIAO DIỆN ────────────────────────────────────────────────────────\r\nXAML_UI = u\"\"\"\r\n<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\r\n        xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\r\n        Title=\"Structural Graphics Override\" Height=\"520\" Width=\"420\"\r\n        WindowStartupLocation=\"CenterScreen\" ResizeMode=\"NoResize\"\r\n        FontFamily=\"Segoe UI\" Background=\"#F5F5F5\">\r\n    <Grid Margin=\"10\">\r\n        <Grid.RowDefinitions>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"*\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n        </Grid.RowDefinitions>\r\n        \r\n        <!-- Category Selection -->\r\n        <GroupBox Grid.Row=\"0\" Header=\"1. Select Categories\" Margin=\"0,0,0,10\" FontWeight=\"Bold\">\r\n            <StackPanel Margin=\"10\" TextElement.FontWeight=\"Normal\">\r\n                <CheckBox Name=\"chkColumns\" Content=\"Structural Columns\" IsChecked=\"True\" Margin=\"0,2\"/>\r\n                <CheckBox Name=\"chkFraming\" Content=\"Structural Framing\" IsChecked=\"True\" Margin=\"0,2\"/>\r\n                <CheckBox Name=\"chkWalls\" Content=\"Walls\" IsChecked=\"True\" Margin=\"0,2\"/>\r\n                <CheckBox Name=\"chkFloors\" Content=\"Floors\" IsChecked=\"True\" Margin=\"0,2\"/>\r\n                <CheckBox Name=\"chkRoofs\" Content=\"Roofs\" Margin=\"0,2\"/>\r\n                <CheckBox Name=\"chkFoundations\" Content=\"Structural Foundations\" IsChecked=\"True\" Margin=\"0,2\"/>\r\n                <CheckBox Name=\"chkGenericModels\" Content=\"Generic Models\" IsChecked=\"True\" Margin=\"0,2\"/>\r\n            </StackPanel>\r\n        </GroupBox>\r\n        \r\n        <!-- Color & Transparency Settings -->\r\n        <GroupBox Grid.Row=\"1\" Header=\"2. Graphics Settings\" Margin=\"0,0,0,10\" FontWeight=\"Bold\">\r\n            <Grid Margin=\"10\" TextElement.FontWeight=\"Normal\">\r\n                <Grid.ColumnDefinitions>\r\n                    <ColumnDefinition Width=\"Auto\"/>\r\n                    <ColumnDefinition Width=\"*\"/>\r\n                    <ColumnDefinition Width=\"50\"/>\r\n                </Grid.ColumnDefinitions>\r\n                <Grid.RowDefinitions>\r\n                    <RowDefinition Height=\"Auto\"/>\r\n                    <RowDefinition Height=\"Auto\"/>\r\n                    <RowDefinition Height=\"Auto\"/>\r\n                    <RowDefinition Height=\"Auto\"/>\r\n                    <RowDefinition Height=\"Auto\"/>\r\n                </Grid.RowDefinitions>\r\n                \r\n                <!-- R -->\r\n                <TextBlock Grid.Row=\"0\" Grid.Column=\"0\" Text=\"Red:\" VerticalAlignment=\"Center\" Margin=\"0,0,10,10\"/>\r\n                <Slider Name=\"slRed\" Grid.Row=\"0\" Grid.Column=\"1\" Minimum=\"0\" Maximum=\"255\" Value=\"100\" TickFrequency=\"1\" IsSnapToTickEnabled=\"True\" VerticalAlignment=\"Center\" Margin=\"0,0,10,10\"/>\r\n                <TextBlock Name=\"txtRed\" Grid.Row=\"0\" Grid.Column=\"2\" Text=\"{Binding ElementName=slRed, Path=Value}\" VerticalAlignment=\"Center\" Margin=\"0,0,0,10\"/>\r\n                \r\n                <!-- G -->\r\n                <TextBlock Grid.Row=\"1\" Grid.Column=\"0\" Text=\"Green:\" VerticalAlignment=\"Center\" Margin=\"0,0,10,10\"/>\r\n                <Slider Name=\"slGreen\" Grid.Row=\"1\" Grid.Column=\"1\" Minimum=\"0\" Maximum=\"255\" Value=\"150\" TickFrequency=\"1\" IsSnapToTickEnabled=\"True\" VerticalAlignment=\"Center\" Margin=\"0,0,10,10\"/>\r\n                <TextBlock Name=\"txtGreen\" Grid.Row=\"1\" Grid.Column=\"2\" Text=\"{Binding ElementName=slGreen, Path=Value}\" VerticalAlignment=\"Center\" Margin=\"0,0,0,10\"/>\r\n                \r\n                <!-- B -->\r\n                <TextBlock Grid.Row=\"2\" Grid.Column=\"0\" Text=\"Blue:\" VerticalAlignment=\"Center\" Margin=\"0,0,10,15\"/>\r\n                <Slider Name=\"slBlue\" Grid.Row=\"2\" Grid.Column=\"1\" Minimum=\"0\" Maximum=\"255\" Value=\"200\" TickFrequency=\"1\" IsSnapToTickEnabled=\"True\" VerticalAlignment=\"Center\" Margin=\"0,0,10,15\"/>\r\n                <TextBlock Name=\"txtBlue\" Grid.Row=\"2\" Grid.Column=\"2\" Text=\"{Binding ElementName=slBlue, Path=Value}\" VerticalAlignment=\"Center\" Margin=\"0,0,0,15\"/>\r\n                \r\n                <!-- Transparency -->\r\n                <TextBlock Grid.Row=\"3\" Grid.Column=\"0\" Text=\"Transp %:\" VerticalAlignment=\"Center\"/>\r\n                <Slider Name=\"slTransp\" Grid.Row=\"3\" Grid.Column=\"1\" Minimum=\"0\" Maximum=\"100\" Value=\"0\" TickFrequency=\"1\" IsSnapToTickEnabled=\"True\" VerticalAlignment=\"Center\" Margin=\"0,0,10,0\"/>\r\n                <TextBlock Name=\"txtTransp\" Grid.Row=\"3\" Grid.Column=\"2\" Text=\"{Binding ElementName=slTransp, Path=Value}\" VerticalAlignment=\"Center\"/>\r\n                \r\n                <!-- Basic Colors -->\r\n                <TextBlock Grid.Row=\"4\" Grid.Column=\"0\" Text=\"Presets:\" VerticalAlignment=\"Center\" Margin=\"0,15,10,0\"/>\r\n                <StackPanel Grid.Row=\"4\" Grid.Column=\"1\" Grid.ColumnSpan=\"2\" Orientation=\"Horizontal\" Margin=\"0,15,0,0\">\r\n                    <Button Name=\"btnC1\" Width=\"22\" Height=\"22\" Background=\"#FFF44336\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Red\"/>\r\n                    <Button Name=\"btnC2\" Width=\"22\" Height=\"22\" Background=\"#FFFF9800\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Orange\"/>\r\n                    <Button Name=\"btnC3\" Width=\"22\" Height=\"22\" Background=\"#FFFFEB3B\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Yellow\"/>\r\n                    <Button Name=\"btnC4\" Width=\"22\" Height=\"22\" Background=\"#FF4CAF50\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Green\"/>\r\n                    <Button Name=\"btnC5\" Width=\"22\" Height=\"22\" Background=\"#FF2196F3\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Blue\"/>\r\n                    <Button Name=\"btnC6\" Width=\"22\" Height=\"22\" Background=\"#FF9C27B0\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Purple\"/>\r\n                    <Button Name=\"btnC7\" Width=\"22\" Height=\"22\" Background=\"#FF00BCD4\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Cyan\"/>\r\n                    <Button Name=\"btnC8\" Width=\"22\" Height=\"22\" Background=\"#FF9E9E9E\" Margin=\"0,0,5,0\" BorderThickness=\"1\" BorderBrush=\"#DDDDDD\" Cursor=\"Hand\" ToolTip=\"Gray\"/>\r\n                </StackPanel>\r\n            </Grid>\r\n        </GroupBox>\r\n        \r\n        <!-- Preview Color -->\r\n        <StackPanel Grid.Row=\"2\" Orientation=\"Horizontal\" HorizontalAlignment=\"Center\" VerticalAlignment=\"Top\">\r\n            <TextBlock Text=\"Preview Color:\" VerticalAlignment=\"Center\" Margin=\"0,0,10,0\"/>\r\n            <Border BorderBrush=\"Black\" BorderThickness=\"1\" Width=\"100\" Height=\"30\">\r\n                <Rectangle Name=\"rectColorPreview\" Fill=\"#FF6496C8\"/>\r\n            </Border>\r\n        </StackPanel>\r\n        \r\n        <!-- Action Buttons -->\r\n        <StackPanel Grid.Row=\"3\" Orientation=\"Horizontal\" HorizontalAlignment=\"Right\">\r\n            <Button Name=\"btnUndo\" Content=\"Undo\" Width=\"80\" Height=\"35\" Margin=\"0,0,10,0\" Background=\"#2196F3\" Foreground=\"White\" FontWeight=\"Bold\" BorderThickness=\"0\"/>\r\n            <Button Name=\"btnReset\" Content=\"Reset\" Width=\"100\" Height=\"35\" Margin=\"0,0,10,0\" Background=\"#FF9800\" Foreground=\"White\" FontWeight=\"Bold\" BorderThickness=\"0\"/>\r\n            <Button Name=\"btnApply\" Content=\"Apply\" Width=\"100\" Height=\"35\" Margin=\"0,0,10,0\" Background=\"#4CAF50\" Foreground=\"White\" FontWeight=\"Bold\" BorderThickness=\"0\"/>\r\n            <Button Name=\"btnCancel\" Content=\"Cancel\" Width=\"80\" Height=\"35\" Background=\"#E0E0E0\" BorderThickness=\"0\"/>\r\n        </StackPanel>\r\n    </Grid>\r\n</Window>\r\n\"\"\"\r\n\r\n# ─── HELPER ────────────────────────────────────────────────────────────────\r\ndef get_solid_fill_pattern(doc):\r\n    \"\"\"Tìm FillPattern dạng SolidFill trong file dự án.\"\"\"\r\n    collector = DB.FilteredElementCollector(doc).OfClass(DB.FillPatternElement)\r\n    for fp in collector:\r\n        if fp.GetFillPattern().IsSolidFill:\r\n            return fp.Id\r\n    return DB.ElementId.InvalidElementId\r\n\r\n# ─── MAIN WINDOW CLASS ─────────────────────────────────────────────────────\r\nclass ColorStructureWindow(object):\r\n    def __init__(self):\r\n        self.undo_stack = []\r\n        self.ui = XamlReader.Parse(XAML_UI)\r\n        \r\n        # Ánh xạ Controls\r\n        self.chkColumns = self.ui.FindName(\"chkColumns\")\r\n        self.chkFraming = self.ui.FindName(\"chkFraming\")\r\n        self.chkWalls = self.ui.FindName(\"chkWalls\")\r\n        self.chkFloors = self.ui.FindName(\"chkFloors\")\r\n        self.chkRoofs = self.ui.FindName(\"chkRoofs\")\r\n        self.chkFoundations = self.ui.FindName(\"chkFoundations\")\r\n        self.chkGenericModels = self.ui.FindName(\"chkGenericModels\")\r\n        \r\n        self.slRed = self.ui.FindName(\"slRed\")\r\n        self.slGreen = self.ui.FindName(\"slGreen\")\r\n        self.slBlue = self.ui.FindName(\"slBlue\")\r\n        self.slTransp = self.ui.FindName(\"slTransp\")\r\n        self.rectColorPreview = self.ui.FindName(\"rectColorPreview\")\r\n        \r\n        self.btnApply = self.ui.FindName(\"btnApply\")\r\n        self.btnCancel = self.ui.FindName(\"btnCancel\")\r\n        self.btnReset = self.ui.FindName(\"btnReset\")\r\n        self.btnUndo = self.ui.FindName(\"btnUndo\")\r\n        \r\n        # Đăng ký sự kiện\r\n        self.slRed.ValueChanged += self.update_color_preview\r\n        self.slGreen.ValueChanged += self.update_color_preview\r\n        self.slBlue.ValueChanged += self.update_color_preview\r\n        \r\n        for i in range(1, 9):\r\n            btn = self.ui.FindName(\"btnC\" + str(i))\r\n            if btn:\r\n                btn.Click += self.preset_color_click\r\n\r\n        self.btnApply.Click += self.btnApply_Click\r\n        self.btnCancel.Click += self.btnCancel_Click\r\n        self.btnReset.Click += self.btnReset_Click\r\n        self.btnUndo.Click += self.btnUndo_Click\r\n        \r\n        # Chạy khởi tạo Preview lần đầu\r\n        self.update_color_preview(None, None)\r\n\r\n    def update_color_preview(self, sender, e):\r\n        \"\"\"Cập nhật Rectangle hiển thị màu sắc trên WPF.\"\"\"\r\n        r = int(self.slRed.Value)\r\n        g = int(self.slGreen.Value)\r\n        b = int(self.slBlue.Value)\r\n        self.rectColorPreview.Fill = SolidColorBrush(WpfColor.FromRgb(r, g, b))\r\n\r\n    def preset_color_click(self, sender, e):\r\n        \"\"\"Cập nhật thanh trượt khi chọn màu Basic (Preset).\"\"\"\r\n        brush = sender.Background\r\n        if brush:\r\n            color = brush.Color\r\n            self.slRed.Value = color.R\r\n            self.slGreen.Value = color.G\r\n            self.slBlue.Value = color.B\r\n\r\n    def btnCancel_Click(self, sender, e):\r\n        self.ui.Close()\r\n\r\n    def get_selected_categories(self):\r\n        selected_categories = []\r\n        if self.chkColumns.IsChecked:\r\n            selected_categories.append(DB.BuiltInCategory.OST_StructuralColumns)\r\n        if self.chkFraming.IsChecked:\r\n            selected_categories.append(DB.BuiltInCategory.OST_StructuralFraming)\r\n        if self.chkWalls.IsChecked:\r\n            selected_categories.append(DB.BuiltInCategory.OST_Walls)\r\n        if self.chkFloors.IsChecked:\r\n            selected_categories.append(DB.BuiltInCategory.OST_Floors)\r\n        if self.chkRoofs.IsChecked:\r\n            selected_categories.append(DB.BuiltInCategory.OST_Roofs)\r\n        if self.chkFoundations.IsChecked:\r\n            selected_categories.append(DB.BuiltInCategory.OST_StructuralFoundation)\r\n        if self.chkGenericModels.IsChecked:\r\n            selected_categories.append(DB.BuiltInCategory.OST_GenericModel)\r\n        return selected_categories\r\n\r\n    def btnReset_Click(self, sender, e):\r\n        selected_categories = self.get_selected_categories()\r\n        if not selected_categories:\r\n            MessageBox.Show(\"Please select at least 1 Category!\", \"Input Error\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n            return\r\n            \r\n        elements_to_modify = []\r\n        for bic in selected_categories:\r\n            collector = DB.FilteredElementCollector(doc, view.Id).OfCategory(bic).WhereElementIsNotElementType()\r\n            elements_to_modify.extend(list(collector))\r\n            \r\n        if not elements_to_modify:\r\n            MessageBox.Show(\"No elements found for the selected categories in the current View.\", \"Information\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n            return\r\n\r\n        # Lưu trữ trạng thái màu trước khi thay đổi để phục vụ tính năng Undo\r\n        current_state = [(elem.Id, view.GetElementOverrides(elem.Id)) for elem in elements_to_modify]\r\n        self.undo_stack.append(current_state)\r\n\r\n        TransactionManager.Instance.ForceCloseTransaction()\r\n        t = DB.Transaction(doc, \"Reset Structural Graphics\")\r\n        try:\r\n            t.Start()\r\n            ogs = DB.OverrideGraphicSettings() # Khởi tạo rỗng để reset về mặc định\r\n            count = 0\r\n            for elem in elements_to_modify:\r\n                view.SetElementOverrides(elem.Id, ogs)\r\n                count += 1\r\n            t.Commit()\r\n            MessageBox.Show(\"Success! Reset color and transparency to default for {} elements in the current View.\".format(count), \"Success\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n        except Exception as ex:\r\n            if t.HasStarted() and not t.HasEnded():\r\n                t.RollBack()\r\n            if self.undo_stack: self.undo_stack.pop() # Xóa snapshot lỗi\r\n            error_msg = \"Cannot reset overrides.\\nThe View might be locked by a View Template.\\n\\nError details: \" + str(ex)\r\n            MessageBox.Show(error_msg, \"Execution Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n\r\n    def btnApply_Click(self, sender, e):\r\n        # =========================================================\r\n        # BƯỚC 2: Kiểm tra và thu thập Input (Validation)\r\n        # =========================================================\r\n        selected_categories = self.get_selected_categories()\r\n            \r\n        if not selected_categories:\r\n            MessageBox.Show(\"Please select at least 1 Category!\", \"Input Error\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n            return\r\n            \r\n        r = int(self.slRed.Value)\r\n        g = int(self.slGreen.Value)\r\n        b = int(self.slBlue.Value)\r\n        transp = int(self.slTransp.Value)\r\n        \r\n        revit_color = DB.Color(r, g, b)\r\n        \r\n        elements_to_modify = []\r\n        for bic in selected_categories:\r\n            collector = DB.FilteredElementCollector(doc, view.Id).OfCategory(bic).WhereElementIsNotElementType()\r\n            elements_to_modify.extend(list(collector))\r\n            \r\n        if not elements_to_modify:\r\n            MessageBox.Show(\"No elements found for the selected categories in the current View.\", \"Information\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n            return\r\n\r\n        # Lưu trữ trạng thái màu trước khi thay đổi để phục vụ tính năng Undo\r\n        current_state = [(elem.Id, view.GetElementOverrides(elem.Id)) for elem in elements_to_modify]\r\n        self.undo_stack.append(current_state)\r\n        \r\n        # =========================================================\r\n        # BƯỚC 1 & 3: Khởi tạo Transaction & Chạy thử bộ lọc / Gán\r\n        # =========================================================\r\n        TransactionManager.Instance.ForceCloseTransaction() # Đóng Transaction ẩn của Dynamo\r\n        t = DB.Transaction(doc, \"Override Structural Graphics\")\r\n        try:\r\n            t.Start()\r\n            \r\n            # Lấy Solid Fill Pattern\r\n            solid_pattern_id = get_solid_fill_pattern(doc)\r\n            if solid_pattern_id == DB.ElementId.InvalidElementId:\r\n                raise Exception(\"Solid Fill Pattern not found in the project.\")\r\n\r\n            # Khởi tạo đối tượng ghi đè\r\n            ogs = DB.OverrideGraphicSettings()\r\n            \r\n            # Gán màu và pattern bề mặt\r\n            ogs.SetSurfaceForegroundPatternId(solid_pattern_id)\r\n            ogs.SetSurfaceForegroundPatternColor(revit_color)\r\n            \r\n            # Gán màu và pattern mặt cắt\r\n            ogs.SetCutForegroundPatternId(solid_pattern_id)\r\n            ogs.SetCutForegroundPatternColor(revit_color)\r\n            \r\n            # Gán độ trong suốt\r\n            ogs.SetSurfaceTransparency(transp)\r\n            \r\n            count = 0\r\n            for elem in elements_to_modify:\r\n                view.SetElementOverrides(elem.Id, ogs)\r\n                count += 1\r\n                    \r\n            # =========================================================\r\n            # BƯỚC 4: Nếu Không có lỗi -> Commit & Thông báo\r\n            # =========================================================\r\n            t.Commit()\r\n            MessageBox.Show(\"Success! Applied color to {} structural elements in the current View.\".format(count), \"Success\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n            \r\n        except Exception as ex:\r\n            # =========================================================\r\n            # XỬ LÝ LỖI: Rollback Transaction và quay lại UI cho User\r\n            # =========================================================\r\n            if t.HasStarted() and not t.HasEnded():\r\n                t.RollBack()\r\n            if self.undo_stack: self.undo_stack.pop() # Xóa snapshot lỗi\r\n            \r\n            error_msg = \"Cannot apply overrides.\\nThe View might be locked by a View Template.\\n\\nError details: \" + str(ex)\r\n            MessageBox.Show(error_msg, \"Execution Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n            # Không close UI để người dùng có thể tự gỡ lỗi (vd tắt View Template) rồi ấn Apply lại\r\n\r\n    def btnUndo_Click(self, sender, e):\r\n        if not self.undo_stack:\r\n            MessageBox.Show(\"No actions to undo.\", \"Information\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n            return\r\n        \r\n        last_state = self.undo_stack.pop()\r\n        \r\n        TransactionManager.Instance.ForceCloseTransaction()\r\n        t = DB.Transaction(doc, \"Undo Graphics Override\")\r\n        try:\r\n            t.Start()\r\n            count = 0\r\n            for elem_id, ogs in last_state:\r\n                view.SetElementOverrides(elem_id, ogs)\r\n                count += 1\r\n            t.Commit()\r\n            MessageBox.Show(\"Undo successful! Reverted {} elements.\".format(count), \"Success\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n        except Exception as ex:\r\n            if t.HasStarted() and not t.HasEnded():\r\n                t.RollBack()\r\n            error_msg = \"Cannot undo overrides.\\nThe View might be locked by a View Template.\\n\\nError details: \" + str(ex)\r\n            MessageBox.Show(error_msg, \"Execution Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n\r\n# ─── RUN SCRIPT ────────────────────────────────────────────────────────────\r\ndef main():\r\n    window = ColorStructureWindow()\r\n    window.ui.ShowDialog()\r\n\r\nmain()\r\nOUT = \"Success\"",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "Name": "Hello World",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 473.52293100415625,
+        "Y": 131.70691563513685
+      },
+      {
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 97.235676123079941,
+        "Y": 133.05673569568208
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "1aa6dfd11cc64f269aac6a608c3df26d",
+        "Title": "@D",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "0122234ee9c249f39aa5138879075566",
+          "5af2b010bc3547cd9e363fbb23363d62"
+        ],
+        "HasNestedGroups": false,
+        "Left": 87.235676123079941,
+        "Top": 59.306915635136853,
+        "Width": 561.08725488107643,
+        "Height": 205.8,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 131.70691563513685,
+        "InitialHeight": 146.34982006054523,
+        "TextblockHeight": 62.4,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": 66.320928429214746,
+    "Y": 76.59637572403409,
+    "Zoom": 0.78436932804482706
+  }
+}

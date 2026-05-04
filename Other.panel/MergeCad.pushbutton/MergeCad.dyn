@@ -1,0 +1,173 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "MergeCad",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: Senior C# & Revit API Developer\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys\r\nimport math\r\nimport os\r\nimport glob\r\n\r\nclr.AddReference(\"System\")\r\nclr.AddReference(\"System.Data\")\r\nimport System\r\nfrom System.Collections.Generic import List\r\nfrom System import Array, Double\r\nfrom System.Data import DataTable\r\n\r\n# Load WPF/XAML libraries\r\nclr.AddReference(\"PresentationFramework\")\r\nclr.AddReference(\"PresentationCore\")\r\nclr.AddReference(\"WindowsBase\")\r\nfrom System.Windows.Markup import XamlReader\r\nfrom System.Windows import Window, MessageBox, MessageBoxButton, MessageBoxImage\r\nfrom System.Windows.Threading import DispatcherPriority\r\n\r\n# Load WinForms for Folder/File Dialogs\r\nclr.AddReference(\"System.Windows.Forms\")\r\nimport System.Windows.Forms as WinForms\r\n\r\n# Load Revit API (Standard Boilerplate)\r\nclr.AddReference(\"RevitAPI\")\r\nclr.AddReference(\"RevitAPIUI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.UI import *\r\n\r\n# Load COM Interop for AutoCAD\r\nfrom System.Runtime.InteropServices import Marshal\r\n#endregion\r\n\r\n#region XAML UI Definition\r\nWPF_XAML = u\"\"\"\r\n<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\r\n        xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\r\n        Title=\"DWG Layout Merger - Auto CAD Automation\" \r\n        Width=\"700\" Height=\"600\" \r\n        WindowStartupLocation=\"CenterScreen\" \r\n        Background=\"#F5F6F8\" FontFamily=\"Segoe UI\" FontSize=\"13\">\r\n    <Window.Resources>\r\n        <!-- Modern Button Style -->\r\n        <Style x:Key=\"ModernBtn\" TargetType=\"Button\">\r\n            <Setter Property=\"Background\" Value=\"#0078D7\"/>\r\n            <Setter Property=\"Foreground\" Value=\"White\"/>\r\n            <Setter Property=\"BorderThickness\" Value=\"0\"/>\r\n            <Setter Property=\"Padding\" Value=\"10,5\"/>\r\n            <Setter Property=\"Cursor\" Value=\"Hand\"/>\r\n            <Setter Property=\"FontWeight\" Value=\"SemiBold\"/>\r\n            <Style.Triggers>\r\n                <Trigger Property=\"IsMouseOver\" Value=\"True\">\r\n                    <Setter Property=\"Background\" Value=\"#106EBE\"/>\r\n                </Trigger>\r\n                <Trigger Property=\"IsEnabled\" Value=\"False\">\r\n                    <Setter Property=\"Background\" Value=\"#CCCCCC\"/>\r\n                    <Setter Property=\"Foreground\" Value=\"#888888\"/>\r\n                </Trigger>\r\n            </Style.Triggers>\r\n        </Style>\r\n    </Window.Resources>\r\n\r\n    <Grid Margin=\"15\">\r\n        <Grid.RowDefinitions>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"*\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n        </Grid.RowDefinitions>\r\n\r\n        <!-- 1. Path Selection -->\r\n        <GroupBox Header=\"1. File Selection\" Grid.Row=\"0\" Padding=\"10\" Margin=\"0,0,0,10\" BorderBrush=\"#DDDDDD\">\r\n            <Grid>\r\n                <Grid.RowDefinitions>\r\n                    <RowDefinition Height=\"Auto\"/>\r\n                    <RowDefinition Height=\"Auto\"/>\r\n                </Grid.RowDefinitions>\r\n                <Grid.ColumnDefinitions>\r\n                    <ColumnDefinition Width=\"100\"/>\r\n                    <ColumnDefinition Width=\"*\"/>\r\n                    <ColumnDefinition Width=\"80\"/>\r\n                </Grid.ColumnDefinitions>\r\n\r\n                <TextBlock Text=\"Source Folder:\" Grid.Row=\"0\" Grid.Column=\"0\" VerticalAlignment=\"Center\"/>\r\n                <TextBox Name=\"txtSourceDir\" Grid.Row=\"0\" Grid.Column=\"1\" Margin=\"5\" IsReadOnly=\"True\" Background=\"#EEEEEE\"/>\r\n                <Button Name=\"btnBrowseSource\" Grid.Row=\"0\" Grid.Column=\"2\" Content=\"Browse\" Margin=\"5\" Style=\"{StaticResource ModernBtn}\"/>\r\n\r\n                <TextBlock Text=\"Output File:\" Grid.Row=\"1\" Grid.Column=\"0\" VerticalAlignment=\"Center\"/>\r\n                <TextBox Name=\"txtOutFile\" Grid.Row=\"1\" Grid.Column=\"1\" Margin=\"5\"/>\r\n                <Button Name=\"btnBrowseOut\" Grid.Row=\"1\" Grid.Column=\"2\" Content=\"Browse\" Margin=\"5\" Style=\"{StaticResource ModernBtn}\"/>\r\n            </Grid>\r\n        </GroupBox>\r\n\r\n        <!-- 2. Processing Options -->\r\n        <GroupBox Header=\"2. Options\" Grid.Row=\"1\" Padding=\"10\" Margin=\"0,0,0,10\" BorderBrush=\"#DDDDDD\">\r\n            <WrapPanel Orientation=\"Horizontal\">\r\n                <CheckBox Name=\"chkNumbering\" Content=\"Add Prefix Numbering (01_, 02_)\" Margin=\"0,5,15,5\" IsChecked=\"True\"/>\r\n                <CheckBox Name=\"chkExplode\" Content=\"Explode Blocks\" Margin=\"0,5,15,5\"/>\r\n                <CheckBox Name=\"chkDrawBox\" Content=\"Draw Bounding Box\" Margin=\"0,5,15,5\" IsChecked=\"True\"/>\r\n                <CheckBox Name=\"chkUnlockLayers\" Content=\"Unlock All Layers\" Margin=\"0,5,15,5\" IsChecked=\"True\"/>\r\n                <CheckBox Name=\"chkDeleteSource\" Content=\"Delete Source Files on Success\" Margin=\"0,5,15,5\" Foreground=\"Red\"/>\r\n            </WrapPanel>\r\n        </GroupBox>\r\n\r\n        <!-- 3. File List -->\r\n        <GroupBox Header=\"3. Detected DWG Files\" Grid.Row=\"2\" Padding=\"5\" Margin=\"0,0,0,10\" BorderBrush=\"#DDDDDD\">\r\n            <ListView Name=\"lvFiles\" BorderThickness=\"0\">\r\n                <ListView.View>\r\n                    <GridView>\r\n                        <GridViewColumn Header=\"#\" DisplayMemberBinding=\"{Binding [Index]}\" Width=\"40\"/>\r\n                        <GridViewColumn Header=\"File Name\" DisplayMemberBinding=\"{Binding [Name]}\" Width=\"350\"/>\r\n                        <GridViewColumn Header=\"Size (KB)\" DisplayMemberBinding=\"{Binding [Size]}\" Width=\"100\"/>\r\n                        <GridViewColumn Header=\"Modified Date\" DisplayMemberBinding=\"{Binding [Date]}\" Width=\"150\"/>\r\n                    </GridView>\r\n                </ListView.View>\r\n            </ListView>\r\n        </GroupBox>\r\n\r\n        <!-- 4. Execution & Progress -->\r\n        <StackPanel Grid.Row=\"3\" Margin=\"0,0,0,10\">\r\n            <TextBlock Name=\"lblStatus\" Text=\"Status: Ready...\" FontWeight=\"Bold\" Foreground=\"#555555\" Margin=\"0,0,0,5\"/>\r\n            <ProgressBar Name=\"pbProgress\" Height=\"15\" Minimum=\"0\" Maximum=\"100\" Value=\"0\" Foreground=\"#0078D7\"/>\r\n        </StackPanel>\r\n\r\n        <!-- 5. Actions -->\r\n        <Grid Grid.Row=\"4\">\r\n            <Grid.ColumnDefinitions>\r\n                <ColumnDefinition Width=\"*\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n            </Grid.ColumnDefinitions>\r\n            <Label Content=\"@FVC DWG Merger\" Foreground=\"Gray\" Grid.Column=\"0\" VerticalAlignment=\"Center\"/>\r\n            <Button Name=\"btnRun\" Grid.Column=\"1\" Content=\"MERGE LAYOUTS\" Width=\"140\" Height=\"35\" Margin=\"0,0,10,0\" Style=\"{StaticResource ModernBtn}\" Background=\"#107C10\"/>\r\n            <Button Name=\"btnCancel\" Grid.Column=\"2\" Content=\"CANCEL\" Width=\"100\" Height=\"35\" Style=\"{StaticResource ModernBtn}\" Background=\"#A80000\"/>\r\n        </Grid>\r\n    </Grid>\r\n</Window>\r\n\"\"\"\r\n#endregion\r\n\r\n#region Helpers\r\ndef to_double_array(lst):\r\n    \"\"\"Convert Python list to COM compatible double array\"\"\"\r\n    return Array[Double]([float(v) for v in lst])\r\n\r\n#endregion\r\n\r\n#region Main App Class\r\nclass DWGMergerWindow(object):\r\n    def __init__(self):\r\n        self.window = XamlReader.Parse(WPF_XAML)\r\n        self._find_controls()\r\n        self._bind_events()\r\n        self.dwg_files = []\r\n        \r\n        # Setup DataTable for WPF Binding (Like autojoin.py)\r\n        self.dt_files = DataTable(\"Files\")\r\n        self.dt_files.Columns.Add(\"Index\", System.Int32)\r\n        self.dt_files.Columns.Add(\"Name\", System.String)\r\n        self.dt_files.Columns.Add(\"Size\", System.Double)\r\n        self.dt_files.Columns.Add(\"Date\", System.String)\r\n        self.lvFiles.ItemsSource = self.dt_files.DefaultView\r\n\r\n    def _find(self, name):\r\n        return self.window.FindName(name)\r\n\r\n    def _find_controls(self):\r\n        self.txtSourceDir = self._find(\"txtSourceDir\")\r\n        self.txtOutFile = self._find(\"txtOutFile\")\r\n        self.lvFiles = self._find(\"lvFiles\")\r\n        self.lblStatus = self._find(\"lblStatus\")\r\n        self.pbProgress = self._find(\"pbProgress\")\r\n        \r\n        self.chkNumbering = self._find(\"chkNumbering\")\r\n        self.chkExplode = self._find(\"chkExplode\")\r\n        self.chkDrawBox = self._find(\"chkDrawBox\")\r\n        self.chkUnlockLayers = self._find(\"chkUnlockLayers\")\r\n        self.chkDeleteSource = self._find(\"chkDeleteSource\")\r\n        \r\n        self.btnBrowseSource = self._find(\"btnBrowseSource\")\r\n        self.btnBrowseOut = self._find(\"btnBrowseOut\")\r\n        self.btnRun = self._find(\"btnRun\")\r\n        self.btnCancel = self._find(\"btnCancel\")\r\n        \r\n    def _bind_events(self):\r\n        self.btnBrowseSource.Click += self.OnBrowseSource\r\n        self.btnBrowseOut.Click += self.OnBrowseOut\r\n        self.btnRun.Click += self.OnRun\r\n        self.btnCancel.Click += self.OnCancel\r\n\r\n    def UpdateUI(self):\r\n        \"\"\"Force WPF UI to refresh\"\"\"\r\n        def empty_action(): pass\r\n        self.window.Dispatcher.Invoke(DispatcherPriority.Background, System.Action(empty_action))\r\n\r\n    def LogStatus(self, msg, progress=None):\r\n        self.lblStatus.Text = str(\"Status: \" + msg)\r\n        if progress is not None:\r\n            self.pbProgress.Value = progress\r\n        self.UpdateUI()\r\n\r\n    def OnBrowseSource(self, sender, e):\r\n        dlg = WinForms.FolderBrowserDialog()\r\n        dlg.Description = \"Select folder containing exported DWGs\"\r\n        if dlg.ShowDialog() == WinForms.DialogResult.OK:\r\n            self.txtSourceDir.Text = dlg.SelectedPath\r\n            self.txtOutFile.Text = os.path.join(dlg.SelectedPath, \"CaC_Merged.dwg\")\r\n            \r\n            # Scan files\r\n            search_pattern = os.path.join(dlg.SelectedPath, \"*.dwg\")\r\n            files = glob.glob(search_pattern)\r\n            \r\n            # Exclude output file if exists\r\n            files = [f for f in files if f.lower() != self.txtOutFile.Text.lower()]\r\n            files.sort() # Sort alphabetically\r\n            \r\n            self.dwg_files = []\r\n            self.dt_files.Clear()\r\n            import time\r\n            \r\n            for idx, f in enumerate(files):\r\n                self.dwg_files.append({\"Path\": f, \"Name\": os.path.basename(f)})\r\n                \r\n                row = self.dt_files.NewRow()\r\n                row[\"Index\"] = idx + 1\r\n                row[\"Name\"] = os.path.basename(f)\r\n                row[\"Size\"] = round(os.path.getsize(f) / 1024.0, 2)\r\n                row[\"Date\"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(os.path.getmtime(f)))\r\n                self.dt_files.Rows.Add(row)\r\n                \r\n            self.LogStatus(\"Detected {} DWG files.\".format(len(self.dwg_files)))\r\n\r\n    def OnBrowseOut(self, sender, e):\r\n        dlg = WinForms.SaveFileDialog()\r\n        dlg.Filter = \"AutoCAD DWG (*.dwg)|*.dwg\"\r\n        dlg.FileName = \"CaC_Merged.dwg\"\r\n        if dlg.ShowDialog() == WinForms.DialogResult.OK:\r\n            self.txtOutFile.Text = dlg.FileName\r\n\r\n    def GetAutoCADApp(self):\r\n        \"\"\"Strict Workflow: Connect to AutoCAD via COM\"\"\"\r\n        self.LogStatus(\"Connecting to AutoCAD Engine...\")\r\n        try:\r\n            # Try getting active AutoCAD\r\n            acad = Marshal.GetActiveObject(\"AutoCAD.Application\")\r\n            return acad\r\n        except:\r\n            try:\r\n                # Spawn new AutoCAD process\r\n                self.LogStatus(\"Starting new AutoCAD process (Please wait)...\")\r\n                acadType = System.Type.GetTypeFromProgID(\"AutoCAD.Application\")\r\n                acad = System.Activator.CreateInstance(acadType)\r\n                acad.Visible = True # Show it so user knows it's running\r\n                return acad\r\n            except Exception as ex:\r\n                MessageBox.Show(\"Failed to connect to AutoCAD. Is it installed?\\n\\nError: \" + str(ex), \r\n                                \"AutoCAD Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n                return None\r\n\r\n    def OnRun(self, sender, e):\r\n        # 1. Input Validation\r\n        if not self.dwg_files:\r\n            MessageBox.Show(\"No DWG files found in source directory.\", \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n            return\r\n            \r\n        out_path = self.txtOutFile.Text\r\n        if not out_path:\r\n            MessageBox.Show(\"Please specify output file path.\", \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning)\r\n            return\r\n\r\n        # Disable UI\r\n        self.btnRun.IsEnabled = False\r\n        self.btnBrowseSource.IsEnabled = False\r\n        \r\n        # 2. AutoCAD Connection\r\n        acad = self.GetAutoCADApp()\r\n        if not acad:\r\n            self.btnRun.IsEnabled = True\r\n            self.LogStatus(\"Operation aborted.\")\r\n            return\r\n\r\n        total_files = len(self.dwg_files)\r\n        gap_distance = 1000.0 # 1000 unit gap between drawings\r\n        current_x = 0.0\r\n\r\n        try:\r\n            # Create a brand new document\r\n            self.LogStatus(\"Creating new Document...\")\r\n            doc = acad.Documents.Add()\r\n            ms = doc.ModelSpace\r\n\r\n            # 3. Main Processing Loop\r\n            for i, f_item in enumerate(self.dwg_files):\r\n                pct = int((float(i) / total_files) * 100)\r\n                self.LogStatus(\"Processing [{}/{}] : {}\".format(i+1, total_files, f_item[\"Name\"]), pct)\r\n                \r\n                # Setup insertion point\r\n                ins_pt = to_double_array([current_x, 0.0, 0.0])\r\n                \r\n                # Insert DWG as Block\r\n                try:\r\n                    # InsertBlock(InsertionPoint, Name, Xscale, Yscale, Zscale, Rotation)\r\n                    block_ref = ms.InsertBlock(ins_pt, f_item[\"Path\"], 1.0, 1.0, 1.0, 0.0)\r\n                except Exception as ins_err:\r\n                    MessageBox.Show(\"Failed to insert file: {}\\n\\nError: {}\".format(f_item[\"Name\"], str(ins_err)), \r\n                                    \"Insertion Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n                    # Strict workflow: Cancel process if an insertion fails\r\n                    doc.Close(False)\r\n                    raise Exception(\"Process stopped due to insertion failure.\")\r\n\r\n                # Calculate Bounding Box of inserted block\r\n                min_ext_ref = clr.Reference[System.Object]()\r\n                max_ext_ref = clr.Reference[System.Object]()\r\n                block_ref.GetBoundingBox(min_ext_ref, max_ext_ref)\r\n                min_ext = min_ext_ref.Value\r\n                max_ext = max_ext_ref.Value\r\n                \r\n                width = max_ext[0] - min_ext[0]\r\n\r\n                # Draw Bounding Box if requested\r\n                if self.chkDrawBox.IsChecked == True:\r\n                    # LWPolyline vertices: X1, Y1, X2, Y2, X3, Y3, X4, Y4, X1, Y1\r\n                    box_verts = to_double_array([\r\n                        min_ext[0], min_ext[1],\r\n                        max_ext[0], min_ext[1],\r\n                        max_ext[0], max_ext[1],\r\n                        min_ext[0], max_ext[1],\r\n                        min_ext[0], min_ext[1]\r\n                    ])\r\n                    poly = ms.AddLightWeightPolyline(box_verts)\r\n                    poly.Color = 1 # Red color for bounding box\r\n\r\n                # Add Numbering Text if requested\r\n                if self.chkNumbering.IsChecked == True:\r\n                    txt_pt = to_double_array([min_ext[0], max_ext[1] + 500.0, 0.0]) # Put text 500 units above\r\n                    text_obj = ms.AddText(\"{:02d}_{}\".format(i+1, f_item[\"Name\"].replace(\".dwg\", \"\")), txt_pt, 250.0) # Height 250\r\n                    text_obj.Color = 3 # Green color\r\n\r\n                # Explode if requested\r\n                if self.chkExplode.IsChecked == True:\r\n                    block_ref.Explode()\r\n                    block_ref.Delete() # Remove original block wrapper after exploding\r\n\r\n                # Update X for next file\r\n                current_x += width + gap_distance\r\n\r\n            # 4. Post Processing\r\n            self.LogStatus(\"Applying post-processing...\", 95)\r\n            \r\n            # Unlock Layers\r\n            if self.chkUnlockLayers.IsChecked == True:\r\n                for layer in doc.Layers:\r\n                    layer.Lock = False\r\n\r\n            # Zoom Extents\r\n            acad.ZoomExtents()\r\n\r\n            # Save File\r\n            self.LogStatus(\"Saving merged DWG...\", 98)\r\n            if os.path.exists(out_path):\r\n                os.remove(out_path)\r\n            doc.SaveAs(out_path)\r\n            \r\n            # 5. Delete Sources (Dangerous operation, handled carefully)\r\n            if self.chkDeleteSource.IsChecked == True:\r\n                self.LogStatus(\"Deleting source files...\")\r\n                for f_item in self.dwg_files:\r\n                    try:\r\n                        os.remove(f_item[\"Path\"])\r\n                    except: pass\r\n\r\n            self.LogStatus(\"MERGE SUCCESSFUL!\", 100)\r\n            MessageBox.Show(\"All files have been merged successfully into:\\n\" + out_path, \"Success\", MessageBoxButton.OK, MessageBoxImage.Information)\r\n\r\n        except Exception as general_err:\r\n            self.LogStatus(\"Error Occurred\", 0)\r\n            if \"stopped\" not in str(general_err):\r\n                MessageBox.Show(\"An unexpected error occurred:\\n\\n\" + str(general_err), \"Error\", MessageBoxButton.OK, MessageBoxImage.Error)\r\n        finally:\r\n            self.btnRun.IsEnabled = True\r\n            self.btnBrowseSource.IsEnabled = True\r\n\r\n    def OnCancel(self, sender, e):\r\n        self.window.Close()\r\n\r\n    def show(self):\r\n        self.window.ShowDialog()\r\n\r\n#endregion\r\n\r\ndef main():\r\n    app = DWGMergerWindow()\r\n    app.show()\r\n\r\n# Execute directly in Dynamo Environment\r\nmain()\r\nOUT = \"Success\"\r\n",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": false
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "Name": "Hello World",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 473.52293100415625,
+        "Y": 131.70691563513685
+      },
+      {
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 97.235676123079941,
+        "Y": 133.05673569568208
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "1aa6dfd11cc64f269aac6a608c3df26d",
+        "Title": "@D",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "0122234ee9c249f39aa5138879075566",
+          "5af2b010bc3547cd9e363fbb23363d62"
+        ],
+        "HasNestedGroups": false,
+        "Left": 87.235676123079941,
+        "Top": 59.306915635136853,
+        "Width": 561.08725488107643,
+        "Height": 205.8,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 131.70691563513685,
+        "InitialHeight": 146.34982006054523,
+        "TextblockHeight": 62.4,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": 66.320928429214746,
+    "Y": 76.59637572403409,
+    "Zoom": 0.78436932804482706
+  }
+}
