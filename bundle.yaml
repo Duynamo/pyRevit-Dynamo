@@ -1,10 +1,9 @@
 layout:
  - Pipe
- - StraightPipe
  - Family
  - Shared Parameter
  - Other
- - Web
  - Connect
- - ISD
  - Sheet
+ - PointCloud
+ - Cad

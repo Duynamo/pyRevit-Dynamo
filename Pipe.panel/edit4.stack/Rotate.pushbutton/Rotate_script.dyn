@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "Rotate_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\nfrom Autodesk.Revit.DB.Structure import *\r\nfrom Autodesk.Revit.DB import Line, XYZ, IntersectionResultArray, SetComparisonResult\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nfrom Autodesk.Revit.UI import *\r\n\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\nclass selectionFilter(ISelectionFilter):\r\n    def __init__(self, categories):\r\n        self.categories = categories  # Danh sách các category (ví dụ: [\"Pipe Fittings\", \"Pipe Accessories\"])\r\n    \r\n    def AllowElement(self, element):\r\n        return element.Category and element.Category.Name in self.categories if self.categories else False\r\n\r\ndef pickPipe():\r\n    pipeFilter = selectionFilter(['Pipes'])\r\n    pipeRef = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter, \"Select a Pipe\")\r\n    pipe = doc.GetElement(pipeRef.ElementId)\r\n    return pipe\r\n\r\ndef pickFittingOrAccessory():\r\n    filter = selectionFilter(['Pipe Fittings', 'Pipe Accessories'])\r\n    ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, filter, \"Select a Pipe Fitting or Pipe Accessory\")\r\n    element = doc.GetElement(ref.ElementId)\r\n    return element\r\n\r\ndef rotate_fitting_or_accessory(pipeA, fitting_or_accessory, angle_degrees):\r\n    \"\"\"\r\n    Xoay fitting hoặc accessory quanh trục của pipeA một góc angle_degrees.\r\n    \r\n    Args:\r\n        pipeA: Pipe chính\r\n        fitting_or_accessory: Pipe Fitting hoặc Pipe Accessory (FamilyInstance)\r\n        angle_degrees: Góc xoay (độ)\r\n    \r\n    Returns:\r\n        bool: True nếu thành công\r\n    \"\"\"\r\n    try:\r\n        if not fitting_or_accessory:\r\n            return False\r\n        # Lấy trục xoay từ pipeA\r\n        pipeA_curve = pipeA.Location.Curve\r\n        P1 = pipeA_curve.GetEndPoint(0)\r\n        P2 = pipeA_curve.GetEndPoint(1)\r\n        axis_dir = (P2 - P1).Normalize()\r\n        # Tâm xoay là vị trí fitting_or_accessory\r\n        location = fitting_or_accessory.Location\r\n        if not hasattr(location, \"Point\"):\r\n            return False\r\n        center = location.Point\r\n        # Tạo trục xoay\r\n        axis_line = Line.CreateUnbound(center, axis_dir)\r\n        # Góc xoay (radian)\r\n        angle_radians = math.radians(angle_degrees)\r\n        # Bắt đầu transaction\r\n        with Transaction(doc, \"Rotate Fitting or Accessory\") as t:\r\n            t.Start()\r\n            # Xoay fitting_or_accessory\r\n            ElementTransformUtils.RotateElement(\r\n                doc, fitting_or_accessory.Id, axis_line, angle_radians\r\n            )\r\n            t.Commit()\r\n        return True\r\n    except Exception as e:\r\n        return False\r\nclass MyForm(Form):\r\n    def __init__(self, pipeA, fittingA):\r\n        # Lưu pipeA và fittingA để sử dụng trong okButton_Click\r\n        self.pipeA = pipeA\r\n        self.fittingA = fittingA\r\n        # Thiết lập UI\r\n        primary_screen = Screen.PrimaryScreen.WorkingArea\r\n        screen_width = primary_screen.Width // 5\r\n        screen_height = primary_screen.Height // 6\r\n        self.Text = ''\r\n        self.ClientSize = Size(screen_width, screen_height)\r\n        self.Font = System.Drawing.Font(\"Meiryo UI\", 7.5, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, 128)\r\n        self.ForeColor = System.Drawing.Color.Red     \r\n        # Cố định vị trí ban đầu (căn giữa màn hình)\r\n        self.StartPosition = FormStartPosition.Manual\r\n        self.initial_location = Point(\r\n            (primary_screen.Width - screen_width) // 3,  # Căn giữa ngang\r\n            (primary_screen.Height - screen_height) // 3  # Căn giữa dọc\r\n        )\r\n        self.Location = self.initial_location\r\n        # Create and add label\r\n        self.label = Label()\r\n        self.label.Text = \"ANGLE\"\r\n        self.label.Size = Size(int(screen_width * 0.5), int(screen_height * 0.15))\r\n        self.label.Location = Point(int(screen_width * 0.05), int(screen_height * 0.1))\r\n        self.Controls.Add(self.label)\r\n        # Create and add text box\r\n        self.textBox = TextBox()\r\n        self.textBox.Location = Point(int(screen_width * 0.05), int(screen_height * 0.3))\r\n        self.textBox.Size = Size(int(screen_width * 0.9), int(screen_height * 0.15))\r\n        self.textBox.KeyDown += self.textBox_KeyDown\r\n        self.Controls.Add(self.textBox)\r\n        \r\n        # Create and add OK button\r\n        self.okButton = Button()\r\n        self.okButton.Text = 'OK'\r\n        self.okButton.Size = Size(int(screen_width * 0.3), int(screen_height * 0.2))\r\n        self.okButton.Location = Point(int(screen_width * 0.4), int(screen_height * 0.7))\r\n        self.okButton.Click += self.okButton_Click\r\n        self.Controls.Add(self.okButton)\r\n        # Create and add Cancel button\r\n        self.cancelButton = Button()\r\n        self.cancelButton.Text = 'CANCLE'\r\n        self.cancelButton.Size = Size(int(screen_width * 0.3), int(screen_height * 0.2))\r\n        self.cancelButton.Location = Point(int(screen_width * 0.7), int(screen_height * 0.7))\r\n        self.cancelButton.Click += self.cancelButton_Click\r\n        self.Controls.Add(self.cancelButton)\r\n        # Create and add FVC label\r\n        self.fvcLabel = Label()\r\n        self.fvcLabel.Text = \"@FVC\"\r\n        self.fvcLabel.Size = Size(int(screen_width * 0.3), int(screen_height * 0.15))\r\n        self.fvcLabel.Location = Point(int(screen_width * 0.05), int(screen_height * 0.8))\r\n        self.Controls.Add(self.fvcLabel)        \r\n        self.result = None\r\n\r\n    def textBox_KeyDown(self, sender, event):\r\n        if event.KeyCode == Keys.Enter:\r\n            self.okButton_Click(sender, None)\r\n            event.Handled = True        \r\n\r\n    def okButton_Click(self, sender, event):\r\n        try:\r\n            angle = float(self.textBox.Text)\r\n            # Thực thi quay fitting\r\n            success = rotate_fitting_or_accessory(self.pipeA, self.fittingA, angle)\r\n            # Reset TextBox\r\n            self.textBox.Text = \"\"\r\n            # Không đóng form, giữ UI mở\r\n            self.DialogResult = DialogResult.OK\r\n        except ValueError:\r\n            # print(\"Error: Please enter a valid number for Angle.\")\r\n            self.textBox.Text = \"\"  # Reset TextBox ngay cả khi lỗi\r\n            self.DialogResult = DialogResult.OK\r\n\r\n    def cancelButton_Click(self, sender, event):\r\n        self.DialogResult = DialogResult.Cancel\r\n        self.Close()  # Đóng form khi nhấn Cancel\r\n\r\n# Chọn pipeA và fittingA\r\ntry:\r\n    pipeA = pickPipe()\r\n    fittingA = pickFittingOrAccessory()\r\n    \r\n    # Mở form và giữ UI mở cho đến khi nhấn Cancel\r\n    form = MyForm(pipeA, fittingA)\r\n    while form.ShowDialog() == DialogResult.OK:\r\n        pass  # Lặp lại để giữ form mở cho đến khi nhấn Cancel\r\nexcept Exception as e: pass\r\n    # print(f\"Error: {str(e)}\")\r\n\r\nOUT = 'Hello world'",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": null,
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "Name": "Hello World",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 405.868954727717,
+        "Y": 135.21038567364269
+      },
+      {
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 122.16572378370284,
+        "Y": 144.47243151875071
+      }
+    ],
+    "Annotations": [],
+    "X": 38.60596822064764,
+    "Y": 36.749520609962246,
+    "Zoom": 1.1047642563030273
+  }
+}

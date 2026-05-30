@@ -1,7 +1,8 @@
 title:
   ru: VN
   fr_fr: Duynamo
-  en_us: DIM
+  en_us: Select
 layout:
-  - workPlanFrom1PipePart
-  - workPlanFrom2PipePart
+  - selectGenericModelInView
+  - selectAllElementInView
+  - selectElementByParameter

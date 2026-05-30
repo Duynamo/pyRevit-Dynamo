@@ -1,0 +1,7 @@
+title:
+  ru: Изменить
+  fr_fr: Modifier
+  en_us: Point Cloud
+layout:
+  - AlignPointCloud
+  - ExportOrignToXML

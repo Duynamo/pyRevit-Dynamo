@@ -1,0 +1,123 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "flipElbow_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": false,
+      "Id": "867c996167144dd29c3783ae5ca0aa66",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "a2a5e05cc78947dbbf0fbbefeb8ca1a3",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Selection between a true and false."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nimport sys \r\nimport System   \r\nimport math\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\nfrom Autodesk.Revit.DB.Plumbing import*\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n\"\"\"_______________________________________________________________________________________\"\"\"\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n\r\n#region _function\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return result\r\nclass selectionFilter(ISelectionFilter):\r\n\tdef __init__(self, category):\r\n\t\tself.category = category\r\n\tdef AllowElement(self, element):\r\n\t\tif element.Category.Name == self.category:\r\n\t\t\treturn True\r\n\t\telse:\r\n\t\t\treturn False\r\ndef pickPipe():\r\n\tpipeFilter = selectionFilter(\"Pipes\")\r\n\tpipesRef = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter,\"pick Pipes\")\r\n\tpipe = doc.GetElement(pipesRef.ElementId)\r\n\treturn pipe\t\r\ndef getConnectedElement(doc, ele):\r\n    _connectedEle = None\r\n    desEle = []\r\n    conns = ele.MEPModel.ConnectorManager.Connectors\r\n    for conn in conns:\r\n        if conn.IsConnected:\r\n            for refConn in conn.AllRefs:\r\n                connectedEle = refConn.Owner\r\n                if connectedEle.Id != ele.Id:\r\n                    _connectedEle = connectedEle\r\n    return _connectedEle\r\ndef unconnectedConn(doc, fittingOrAccessory):\r\n    conns = list(fittingOrAccessory.MEPModel.ConnectorManager.Connectors.GetEnumerator())\r\n    _connectedConn = None\r\n    _unConnectedConn = None\r\n    for conn in conns:\r\n        if conn.IsConnected:\r\n            _connectedConn = conn\r\n        else:\r\n            _unConnectedConn = conn\r\n    return _unConnectedConn\r\ndef connectedConn(doc, fittingOrAccessory):\r\n    conns = list(fittingOrAccessory.MEPModel.ConnectorManager.Connectors.GetEnumerator())\r\n    _connectedConn = None\r\n    _unConnectedConn = None\r\n    for conn in conns:\r\n        if conn.IsConnected:\r\n            _connectedConn = conn\r\n        else:\r\n            _unConnectedConn = conn\r\n    return _connectedConn\r\ndef findNearestConnector(connectorSet, targetPoint):\r\n    nearest_connector = None\r\n    minDistance = float('inf')\r\n    \r\n    for connector in connectorSet:\r\n        distance = (connector.Origin - targetPoint).GetLength()\r\n        if distance < minDistance:\r\n            minDistance = distance\r\n            nearestConnector = connector\r\n    return nearestConnector\r\ndef findFarConnector(connectorSet, targetPoint):\r\n    farConnector = None\r\n    minDistance = float('inf')\r\n    for connector in connectorSet:\r\n        distance = (connector.Origin - targetPoint).GetLength()\r\n        if distance > minDistance:\r\n            maxDistance = distance\r\n            farConnector = connector\r\n    return farConnector\r\ndef connect2Connectors(doc, elbow, pipe): #Still bug here\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    unconnected_elbow = unconnectedConn(doc, elbow)\r\n    pipeConns = [conn for conn in pipe.ConnectorManager.Connectors]\r\n    nearConn_pipe = findNearestConnector(pipeConns, unconnected_elbow.Origin)\r\n    farConn_pipe = findFarConnector(pipeConns, unconnected_elbow.Origin)\r\n    newLocationCurve = Line.CreateBound(unconnected_elbow.Origin, farConn_pipe)   \r\n    locationCurve = pipe.Location\r\n    locationCurve.Curve = newLocationCurve\r\n    nearConn_pipe.ConnectTo(unconnected_elbow)\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return nearConn_pipe\r\ndef createElbow(doc, pipes):\r\n\tconnectors = []\r\n\r\n\ttry:\r\n\t\tfor pipe in pipes:\r\n\t\t\tconnectors.append(pipe.ConnectorManager.Connectors)\r\n\texcept:\r\n\t\tpass\r\n\tTransactionManager.Instance.EnsureInTransaction(doc)\r\n\ttry:\r\n\t\tfor set1, set2 in zip(connectors[:-1], connectors[1:]):\r\n\t\t\tconStart = list(set1)\r\n\t\t\tconEnd = list(set2)\r\n\t\t\td1 = conStart[0].Origin.DistanceTo(conEnd[0].Origin)*conStart[0].Origin.DistanceTo(conEnd[1].Origin)\r\n\t\t\td2 = conStart[1].Origin.DistanceTo(conEnd[0].Origin)*conStart[1].Origin.DistanceTo(conEnd[1].Origin)\r\n\t\t\ti = 0\r\n\t\t\tif d1 > d2:\r\n\t\t\t\ti = 1\r\n\t\t\td3 = conEnd[0].Origin.DistanceTo(conStart[0].Origin)*conEnd[0].Origin.DistanceTo(conStart[1].Origin)\r\n\t\t\td4 = conEnd[1].Origin.DistanceTo(conStart[0].Origin)*conEnd[1].Origin.DistanceTo(conStart[1].Origin)\r\n\t\t\tj = 0\r\n\t\t\tif d3 > d4:\r\n\t\t\t\tj = 1\r\n\t\t\tfitting = doc.Create.NewElbowFitting(conStart[i],conEnd[j])\r\n\texcept:\r\n\t\tpass\r\n\treturn fitting\r\ndef NearestConnector(ConnectorSet, curCurve):\r\n    MinLength = float(\"inf\")\r\n    result = None  # Initialize result to None\r\n    for n in ConnectorSet:\r\n        distance = curCurve.Location.Curve.Distance(n.Origin)\r\n        if distance < MinLength:\r\n            MinLength = distance\r\n            result = n\r\n    return result\r\ndef closetConn(pipe1, pipe2):\r\n    connLst = []\r\n    connectors = list(pipe2.ConnectorManager.Connectors.GetEnumerator())\r\n    nearConn1 = [NearestConnector(connectors, pipe1)]\r\n    farConn1  = [conn for conn in connectors if conn not in nearConn1]\r\n    shortedConnLst = [ele for ele in nearConn1] + [ele for ele in farConn1]\r\n    connLst = [conn.Origin for conn in shortedConnLst]\r\n    vector = connLst[0]-connLst[1]\r\n    return connLst, vector\r\ndef offsetPointAlongVector(point, vector, offsetDistance):\r\n    direction = vector.Normalize()\r\n    scaledVector = direction.Multiply(offsetDistance)\r\n    offsetPoint = point.Add(scaledVector)\r\n    return offsetPoint\r\ndef getPipeParameter(p):\r\n    pipeTypeId = p.PipeType.Id\r\n    pipingSystemId = p.MEPSystem.GetTypeId()\r\n    levelId = doc.GetElement(p.ReferenceLevel.Id)\r\n    diam = pipe2.LookupParameter('Diameter').AsDouble()\r\n    return diam, pipingSystemId, pipeTypeId, levelId\r\ndef rotateElbowAroundPipe(doc, elbow, pipe, connector):\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    connOrigin = connector.Origin\r\n    connTangent = connector.CoordinateSystem.BasisZ   \r\n    rotationAxis = connTangent.Normalize()\r\n    rotationAngle = math.radians(180)\r\n    rotationTransform = Transform.CreateRotationAtPoint(rotationAxis, rotationAngle, connOrigin)\r\n    ElementTransformUtils.RotateElement(doc, elbow.Id, Line.CreateBound(connOrigin, connOrigin + rotationAxis), rotationAngle)\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return elbow\r\ndef mirrorLocationCurve(doc, pipe1, pipe2):\r\n    line1 = pipe1.Location.Curve\r\n    line2 = pipe2.Location.Curve\r\n    line2_SP = line2.GetEndPoint(0)\r\n    line2_EP = line2.GetEndPoint(1)\r\n    start1 = line1.GetEndPoint(0)\r\n    end1 = line1.GetEndPoint(1)\r\n    midpoint1 = (start1 + end1) / 2\r\n    direction1 = (end1 - start1).Normalize()\r\n    normal = direction1.CrossProduct(XYZ.BasisZ).Normalize()\r\n    mirrorPlane = Plane.CreateByNormalAndOrigin(normal, midpoint1)   \r\n    vector1_to_line1 = line2_SP - line1.GetEndPoint(0)\r\n    perpendicular_vector1 = vector1_to_line1 - vector1_to_line1.DotProduct(direction1)*direction1\r\n    mirror_point1 = line2_SP-2*perpendicular_vector1\r\n    vector2_to_line1 = line2_EP - line1.GetEndPoint(0)\r\n    perpendicular_vector2 = vector2_to_line1 - vector2_to_line1.DotProduct(direction1)*direction1\r\n    mirror_point2 = line2_EP-2*perpendicular_vector2  \r\n    mirror_line2 = Line.CreateBound(mirror_point1, mirror_point2)\r\n    return mirror_line2\r\n#endregion\r\n'''___'''\r\npipe1 = pickPipe()\r\npipe2 = pickPipe()\r\npipeTypeId = pipe2.PipeType.Id\r\npipingSystemId = pipe2.MEPSystem.GetTypeId()\r\nlevelId = doc.GetElement(pipe2.ReferenceLevel.Id)\r\npipe2_diam = pipe2.LookupParameter('Diameter').AsDouble()\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\npipeList = []\r\npipeList.append(pipe1)\r\n\r\ntempCurve = mirrorLocationCurve(doc, pipe1, pipe2)\r\ntempPoint1 = tempCurve.GetEndPoint(0)\r\ntempPoint2 = tempCurve.GetEndPoint(1)\r\nnewPipe1 = Pipe.Create(doc,pipingSystemId, pipeTypeId, levelId.Id, tempPoint1, tempPoint2)\r\ntempPipeId = newPipe1.Id\r\nnewPipe1_diam = newPipe1.LookupParameter(\"Diameter\")\r\nnewPipe1_diam.Set(pipe2_diam)\r\npipeList.append(newPipe1)\r\nelbow1 = createElbow(doc, pipeList)\r\nif elbow1:\r\n    doc.Delete(newPipe1.Id)\r\n    elbow1_connectedConn = connectedConn(doc, elbow1)\r\n    rotateElbow1 = rotateElbowAroundPipe(doc, elbow1, pipe1, elbow1_connectedConn)\r\n    unconnected_elbow = unconnectedConn(doc, elbow1)\r\n    pipe2Conns = [conn for conn in pipe2.ConnectorManager.Connectors]\r\n    nearConn_pipe2 = findNearestConnector(pipe2Conns, unconnected_elbow.Origin)\r\n    farConn_pipe = findFarConnector(pipe2Conns, unconnected_elbow.Origin)\r\n    newLocationCurve = Line.CreateBound(unconnected_elbow.Origin, farConn_pipe)   \r\n    locationCurve = pipe2.Location\r\n    locationCurve.Curve = newLocationCurve\r\n    nearConn_pipe2.ConnectTo(unconnected_elbow)    \r\n    # connect_elbow1_pipe2 = connect2Connectors(doc, elbow1, pipe2)\r\nTransactionManager.Instance.TransactionTaskDone()\r\nOUT =   elbow1",
+      "Engine": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "9ff4c61fdaf14841aec4f3c44877d6d6",
+      "Inputs": [
+        {
+          "Id": "c0cd53e1a28e4064b0c1495a7f233ec7",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "f7265b4f74b4406fa3d513a94ec63514",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "a2a5e05cc78947dbbf0fbbefeb8ca1a3",
+      "End": "c0cd53e1a28e4064b0c1495a7f233ec7",
+      "Id": "506f6e2d7b4b41438903978b88f6f360"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.10.1.3976",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "NodeViews": [
+      {
+        "ShowGeometry": true,
+        "Name": "Boolean",
+        "Id": "867c996167144dd29c3783ae5ca0aa66",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 244.79999999999998,
+        "Y": 104.80000000000004
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Hello World!!!",
+        "Id": "9ff4c61fdaf14841aec4f3c44877d6d6",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 420.0,
+        "Y": 97.6
+      }
+    ],
+    "Annotations": [],
+    "X": -52.799999999999955,
+    "Y": 88.799999999999983,
+    "Zoom": 1.0
+  }
+}

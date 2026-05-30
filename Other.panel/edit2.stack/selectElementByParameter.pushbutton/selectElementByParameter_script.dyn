@@ -1,0 +1,149 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "selectElementByParameter_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys\r\nimport System\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import *\r\n\r\nclr.AddReference(\"RevitAPIUI\")\r\nfrom Autodesk.Revit.UI import *\r\n\r\nclr.AddReference(\"System\")\r\nclr.AddReference(\"System.Data\")\r\nfrom System.Collections.Generic import List\r\nfrom System.Data import DataTable\r\n\r\nclr.AddReference(\"PresentationFramework\")\r\nclr.AddReference(\"PresentationCore\")\r\nclr.AddReference(\"WindowsBase\")\r\nfrom System.Windows.Markup import XamlReader\r\nfrom System.Windows import Window, MessageBox, MessageBoxButton, MessageBoxImage\r\n\r\n# Khởi tạo các biến Revit cơ bản cho môi trường Dynamo (IronPython)\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\ndoc  = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp  = uiapp.Application\r\nuidoc = uiapp.ActiveUIDocument\r\n\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region XAML UI Definition\r\nWPF_XAML = u\"\"\"\r\n<Window xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\r\n        xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\r\n        Title=\"Filter Elements by Parameter\"\r\n        Width=\"480\" Height=\"430\"\r\n        WindowStartupLocation=\"CenterScreen\"\r\n        Background=\"#F5F6F8\" FontFamily=\"Segoe UI\" FontSize=\"13\"\r\n        ResizeMode=\"NoResize\"\r\n        Topmost=\"True\">\r\n    <Window.Resources>\r\n        <!-- Modern Button Style -->\r\n        <Style x:Key=\"ModernBtn\" TargetType=\"Button\">\r\n            <Setter Property=\"Foreground\"       Value=\"White\"/>\r\n            <Setter Property=\"BorderThickness\"  Value=\"0\"/>\r\n            <Setter Property=\"Padding\"          Value=\"10,5\"/>\r\n            <Setter Property=\"Cursor\"           Value=\"Hand\"/>\r\n            <Setter Property=\"FontWeight\"       Value=\"SemiBold\"/>\r\n            <Setter Property=\"Template\">\r\n                <Setter.Value>\r\n                    <ControlTemplate TargetType=\"Button\">\r\n                        <Border Background=\"{TemplateBinding Background}\"\r\n                                CornerRadius=\"4\"\r\n                                Padding=\"{TemplateBinding Padding}\">\r\n                            <ContentPresenter HorizontalAlignment=\"Center\"\r\n                                              VerticalAlignment=\"Center\"/>\r\n                        </Border>\r\n                        <ControlTemplate.Triggers>\r\n                            <Trigger Property=\"IsMouseOver\" Value=\"True\">\r\n                                <Setter Property=\"Opacity\" Value=\"0.85\"/>\r\n                            </Trigger>\r\n                            <Trigger Property=\"IsPressed\" Value=\"True\">\r\n                                <Setter Property=\"Opacity\" Value=\"0.70\"/>\r\n                            </Trigger>\r\n                        </ControlTemplate.Triggers>\r\n                    </ControlTemplate>\r\n                </Setter.Value>\r\n            </Setter>\r\n        </Style>\r\n\r\n        <!-- Label Style -->\r\n        <Style x:Key=\"FieldLabel\" TargetType=\"TextBlock\">\r\n            <Setter Property=\"FontWeight\"   Value=\"SemiBold\"/>\r\n            <Setter Property=\"Foreground\"   Value=\"#333333\"/>\r\n            <Setter Property=\"Margin\"       Value=\"0,0,0,4\"/>\r\n        </Style>\r\n\r\n        <!-- ComboBox Style -->\r\n        <Style TargetType=\"ComboBox\">\r\n            <Setter Property=\"Height\"           Value=\"30\"/>\r\n            <Setter Property=\"Padding\"          Value=\"6,4\"/>\r\n            <Setter Property=\"Background\"       Value=\"White\"/>\r\n            <Setter Property=\"BorderBrush\"      Value=\"#CCCCCC\"/>\r\n            <Setter Property=\"BorderThickness\"  Value=\"1\"/>\r\n            <Setter Property=\"VerticalContentAlignment\" Value=\"Center\"/>\r\n        </Style>\r\n    </Window.Resources>\r\n\r\n    <Grid Margin=\"20\">\r\n        <Grid.RowDefinitions>\r\n            <!-- Title -->\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <!-- Separator -->\r\n            <RowDefinition Height=\"10\"/>\r\n            <!-- Category -->\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <!-- Gap -->\r\n            <RowDefinition Height=\"12\"/>\r\n            <!-- Parameter Group -->\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <!-- Gap -->\r\n            <RowDefinition Height=\"12\"/>\r\n            <!-- Parameter Name -->\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <!-- Gap -->\r\n            <RowDefinition Height=\"12\"/>\r\n            <!-- Parameter Value -->\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <!-- Spacer -->\r\n            <RowDefinition Height=\"*\"/>\r\n            <!-- Buttons + Footer -->\r\n            <RowDefinition Height=\"Auto\"/>\r\n            <!-- Footer gap -->\r\n            <RowDefinition Height=\"8\"/>\r\n        </Grid.RowDefinitions>\r\n\r\n        <!-- ====== Title ====== -->\r\n        <TextBlock Grid.Row=\"0\"\r\n                   Text=\"Filter Elements by Parameter\"\r\n                   FontSize=\"16\" FontWeight=\"Bold\"\r\n                   Foreground=\"#0078D7\"/>\r\n\r\n        <!-- Separator Line -->\r\n        <Rectangle Grid.Row=\"1\" Height=\"1\" Fill=\"#DDDDDD\" Margin=\"0,4,0,0\"/>\r\n\r\n        <!-- ====== Category ====== -->\r\n        <TextBlock Grid.Row=\"2\" Text=\"Select Category\" Style=\"{StaticResource FieldLabel}\"/>\r\n        <ComboBox  Name=\"cmbCategory\" Grid.Row=\"3\"/>\r\n\r\n        <!-- ====== Parameter Group ====== -->\r\n        <TextBlock Grid.Row=\"5\" Text=\"Select Parameter Group\" Style=\"{StaticResource FieldLabel}\"/>\r\n        <ComboBox  Name=\"cmbParamGroup\" Grid.Row=\"6\" IsEnabled=\"False\"/>\r\n\r\n        <!-- ====== Parameter Name ====== -->\r\n        <TextBlock Grid.Row=\"8\" Text=\"Select Parameter Name\" Style=\"{StaticResource FieldLabel}\"/>\r\n        <ComboBox  Name=\"cmbParamName\" Grid.Row=\"9\" IsEnabled=\"False\"/>\r\n\r\n        <!-- ====== Parameter Value ====== -->\r\n        <TextBlock Grid.Row=\"11\" Text=\"Select Parameter Value\" Style=\"{StaticResource FieldLabel}\"/>\r\n        <ComboBox  Name=\"cmbParamValue\" Grid.Row=\"12\" IsEnabled=\"False\"/>\r\n\r\n        <!-- ====== Action Buttons + Watermark ====== -->\r\n        <Grid Grid.Row=\"14\" Margin=\"0,12,0,0\">\r\n            <Grid.ColumnDefinitions>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"*\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"10\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n                <ColumnDefinition Width=\"10\"/>\r\n                <ColumnDefinition Width=\"Auto\"/>\r\n            </Grid.ColumnDefinitions>\r\n\r\n            <!-- Watermark V2D at bottom-left -->\r\n            <TextBlock Grid.Column=\"0\"\r\n                       Text=\"&#169; V2D\"\r\n                       FontSize=\"11\" FontWeight=\"Bold\"\r\n                       Foreground=\"#AAAAAA\"\r\n                       VerticalAlignment=\"Center\"\r\n                       Margin=\"0,0,8,0\"\r\n                       ToolTip=\"Copyright by vudinhduybm@gmail.com\"/>\r\n\r\n            <Button Name=\"btnIsolate\" Grid.Column=\"2\"\r\n                    Content=\"Isolate\" Width=\"100\" Height=\"35\"\r\n                    Style=\"{StaticResource ModernBtn}\" Background=\"#107C10\"/>\r\n\r\n            <Button Name=\"btnHide\"    Grid.Column=\"4\"\r\n                    Content=\"Hide\"    Width=\"100\" Height=\"35\"\r\n                    Style=\"{StaticResource ModernBtn}\" Background=\"#FF8C00\"/>\r\n\r\n            <Button Name=\"btnCancel\"  Grid.Column=\"6\"\r\n                    Content=\"Cancel\"  Width=\"100\" Height=\"35\"\r\n                    Style=\"{StaticResource ModernBtn}\" Background=\"#A80000\"/>\r\n        </Grid>\r\n    </Grid>\r\n</Window>\r\n\"\"\"\r\n#endregion\r\n\r\n#region ___Logic Backend\r\ndef getModelCategoriesInView(document, view_ref):\r\n    \"\"\"\r\n    Lấy danh sách các Category thực sự có đối tượng trong View hiện tại.\r\n    Trả về list tuple (category_name, BuiltInCategory) đã sắp xếp theo tên.\r\n    \"\"\"\r\n    collector = FilteredElementCollector(document, view_ref.Id)\\\r\n                .WhereElementIsNotElementType()\r\n\r\n    cat_set = {}\r\n    for elem in collector:\r\n        try:\r\n            cat = elem.Category\r\n            if cat is None:\r\n                continue\r\n            if cat.CategoryType != CategoryType.Model:\r\n                continue\r\n            if cat.Name not in cat_set:\r\n                cat_set[cat.Name] = cat.Id\r\n        except:\r\n            pass\r\n\r\n    result = sorted(cat_set.items(), key=lambda x: x[0])\r\n    return result  # list of (name, ElementId)\r\n\r\n\r\ndef getParameterGroupsForCategory(document, view_ref, category_id):\r\n    \"\"\"\r\n    Lấy tất cả các Parameter Group tồn tại trên các element thuộc category_id trong View.\r\n    Trả về list string tên nhóm đã sắp xếp, và dict {group_name: group_enum_value}\r\n    \"\"\"\r\n    cat_filter = ElementCategoryFilter(category_id)\r\n    collector = FilteredElementCollector(document, view_ref.Id)\\\r\n                .WherePasses(cat_filter)\\\r\n                .WhereElementIsNotElementType()\r\n\r\n    group_dict = {}  # { group_label_string: internal_group_value }\r\n    for elem in collector:\r\n        try:\r\n            params = elem.Parameters\r\n            for p in params:\r\n                try:\r\n                    # Lấy tên nhóm hiển thị\r\n                    group_name = p.Definition.ParameterGroup.ToString()\r\n                    # Thử lấy label đẹp hơn qua LabelUtils nếu có\r\n                    try:\r\n                        group_name = LabelUtils.GetLabelFor(p.Definition.ParameterGroup)\r\n                    except:\r\n                        pass\r\n                    if group_name not in group_dict:\r\n                        group_dict[group_name] = p.Definition.ParameterGroup\r\n                except:\r\n                    pass\r\n        except:\r\n            pass\r\n\r\n    return group_dict  # { display_name: group_enum }\r\n\r\n\r\ndef getParameterNamesForGroup(document, view_ref, category_id, param_group_enum):\r\n    \"\"\"\r\n    Lấy tất cả tên Parameter thuộc param_group_enum trên các element của category_id trong View.\r\n    Trả về list string tên parameter đã sắp xếp.\r\n    \"\"\"\r\n    cat_filter = ElementCategoryFilter(category_id)\r\n    collector = FilteredElementCollector(document, view_ref.Id)\\\r\n                .WherePasses(cat_filter)\\\r\n                .WhereElementIsNotElementType()\r\n\r\n    param_names = set()\r\n    for elem in collector:\r\n        try:\r\n            params = elem.Parameters\r\n            for p in params:\r\n                try:\r\n                    if p.Definition.ParameterGroup == param_group_enum:\r\n                        param_names.add(p.Definition.Name)\r\n                except:\r\n                    pass\r\n        except:\r\n            pass\r\n\r\n    return sorted(list(param_names))\r\n\r\n\r\ndef getParameterValuesForName(document, view_ref, category_id, param_name):\r\n    \"\"\"\r\n    Lấy tất cả các giá trị (value string) của parameter param_name\r\n    trên các element của category_id trong View.\r\n    Trả về dict { value_string: [ElementId, ...] }\r\n    \"\"\"\r\n    cat_filter = ElementCategoryFilter(category_id)\r\n    collector = FilteredElementCollector(document, view_ref.Id)\\\r\n                .WherePasses(cat_filter)\\\r\n                .WhereElementIsNotElementType()\r\n\r\n    value_dict = {}  # { value_string: [ElementId] }\r\n    for elem in collector:\r\n        try:\r\n            param = elem.LookupParameter(param_name)\r\n            if param is None:\r\n                continue\r\n            # Lấy giá trị string\r\n            if param.StorageType == StorageType.String:\r\n                val = param.AsString() or \"\"\r\n            elif param.StorageType == StorageType.Integer:\r\n                val = str(param.AsInteger())\r\n            elif param.StorageType == StorageType.Double:\r\n                val = str(round(param.AsDouble(), 4))\r\n            elif param.StorageType == StorageType.ElementId:\r\n                eid = param.AsElementId()\r\n                val = str(eid.IntegerValue)\r\n            else:\r\n                val = \"N/A\"\r\n\r\n            if val not in value_dict:\r\n                value_dict[val] = []\r\n            value_dict[val].append(elem.Id)\r\n        except:\r\n            pass\r\n\r\n    return value_dict\r\n#endregion\r\n\r\n#region ___WPF UI Class\r\nclass FilterByParameterWindow(object):\r\n    def __init__(self, doc_ref, uidoc_ref, view_ref):\r\n        self.doc  = doc_ref\r\n        self.uidoc = uidoc_ref\r\n        self.view = view_ref\r\n\r\n        # Internal state\r\n        self._categories    = []   # list of (name, ElementId_of_category)\r\n        self._group_dict    = {}   # { display_name: group_enum }\r\n        self._param_names   = []   # list of string\r\n        self._value_dict    = {}   # { value_string: [ElementId] }\r\n        self._cat_id        = None # ElementId of selected category\r\n\r\n        self.window = XamlReader.Parse(WPF_XAML)\r\n        self._find_controls()\r\n        self._bind_events()\r\n        self._load_categories()\r\n\r\n    # ── helpers ──────────────────────────────────────────────────────────────\r\n    def _find(self, name):\r\n        return self.window.FindName(name)\r\n\r\n    def _find_controls(self):\r\n        self.cmbCategory   = self._find(\"cmbCategory\")\r\n        self.cmbParamGroup = self._find(\"cmbParamGroup\")\r\n        self.cmbParamName  = self._find(\"cmbParamName\")\r\n        self.cmbParamValue = self._find(\"cmbParamValue\")\r\n        self.btnIsolate    = self._find(\"btnIsolate\")\r\n        self.btnHide       = self._find(\"btnHide\")\r\n        self.btnCancel     = self._find(\"btnCancel\")\r\n\r\n    def _bind_events(self):\r\n        self.cmbCategory.SelectionChanged   += self.OnCategoryChanged\r\n        self.cmbParamGroup.SelectionChanged += self.OnParamGroupChanged\r\n        self.cmbParamName.SelectionChanged  += self.OnParamNameChanged\r\n        self.btnIsolate.Click += self.OnIsolate\r\n        self.btnHide.Click    += self.OnHide\r\n        self.btnCancel.Click  += self.OnCancel\r\n\r\n    # ── Load data helpers ────────────────────────────────────────────────────\r\n    def _clear_combo(self, combo, placeholder, enable=False):\r\n        \"\"\"Xóa item, thêm placeholder và set trạng thái enable.\"\"\"\r\n        combo.Items.Clear()\r\n        combo.Items.Add(placeholder)\r\n        combo.SelectedIndex = 0\r\n        combo.IsEnabled = enable\r\n\r\n    def _load_categories(self):\r\n        self._categories = getModelCategoriesInView(self.doc, self.view)\r\n        self.cmbCategory.Items.Clear()\r\n        self.cmbCategory.Items.Add(\"-- Select Category --\")\r\n        for cat_name, _ in self._categories:\r\n            self.cmbCategory.Items.Add(cat_name)\r\n        self.cmbCategory.SelectedIndex = 0\r\n\r\n        # Reset các combo phụ\r\n        self._clear_combo(self.cmbParamGroup, \"-- Select Parameter Group --\", False)\r\n        self._clear_combo(self.cmbParamName,  \"-- Select Parameter Name --\",  False)\r\n        self._clear_combo(self.cmbParamValue, \"-- Select Parameter Value --\", False)\r\n\r\n    # ── Event handlers ───────────────────────────────────────────────────────\r\n    def OnCategoryChanged(self, sender, e):\r\n        idx = self.cmbCategory.SelectedIndex\r\n        if idx <= 0:\r\n            # Reset tất cả\r\n            self._cat_id = None\r\n            self._clear_combo(self.cmbParamGroup, \"-- Select Parameter Group --\", False)\r\n            self._clear_combo(self.cmbParamName,  \"-- Select Parameter Name --\",  False)\r\n            self._clear_combo(self.cmbParamValue, \"-- Select Parameter Value --\", False)\r\n            return\r\n\r\n        cat_name, cat_elem_id = self._categories[idx - 1]\r\n        self._cat_id = cat_elem_id\r\n\r\n        # Load Parameter Groups\r\n        self._group_dict = getParameterGroupsForCategory(self.doc, self.view, self._cat_id)\r\n        sorted_groups = sorted(self._group_dict.keys())\r\n\r\n        self.cmbParamGroup.Items.Clear()\r\n        self.cmbParamGroup.Items.Add(\"-- Select Parameter Group --\")\r\n        for g in sorted_groups:\r\n            self.cmbParamGroup.Items.Add(g)\r\n        self.cmbParamGroup.SelectedIndex = 0\r\n        self.cmbParamGroup.IsEnabled = True\r\n\r\n        # Reset downstream\r\n        self._clear_combo(self.cmbParamName,  \"-- Select Parameter Name --\",  False)\r\n        self._clear_combo(self.cmbParamValue, \"-- Select Parameter Value --\", False)\r\n\r\n    def OnParamGroupChanged(self, sender, e):\r\n        idx = self.cmbParamGroup.SelectedIndex\r\n        if idx <= 0:\r\n            self._clear_combo(self.cmbParamName,  \"-- Select Parameter Name --\",  False)\r\n            self._clear_combo(self.cmbParamValue, \"-- Select Parameter Value --\", False)\r\n            return\r\n\r\n        group_name = self.cmbParamGroup.SelectedItem\r\n        group_enum = self._group_dict.get(group_name, None)\r\n        if group_enum is None:\r\n            return\r\n\r\n        # Load Parameter Names\r\n        self._param_names = getParameterNamesForGroup(\r\n            self.doc, self.view, self._cat_id, group_enum\r\n        )\r\n\r\n        self.cmbParamName.Items.Clear()\r\n        self.cmbParamName.Items.Add(\"-- Select Parameter Name --\")\r\n        for n in self._param_names:\r\n            self.cmbParamName.Items.Add(n)\r\n        self.cmbParamName.SelectedIndex = 0\r\n        self.cmbParamName.IsEnabled = True\r\n\r\n        # Reset downstream\r\n        self._clear_combo(self.cmbParamValue, \"-- Select Parameter Value --\", False)\r\n\r\n    def OnParamNameChanged(self, sender, e):\r\n        idx = self.cmbParamName.SelectedIndex\r\n        if idx <= 0:\r\n            self._clear_combo(self.cmbParamValue, \"-- Select Parameter Value --\", False)\r\n            return\r\n\r\n        param_name = self.cmbParamName.SelectedItem\r\n\r\n        # Load Parameter Values\r\n        self._value_dict = getParameterValuesForName(\r\n            self.doc, self.view, self._cat_id, param_name\r\n        )\r\n\r\n        sorted_values = sorted(self._value_dict.keys())\r\n\r\n        self.cmbParamValue.Items.Clear()\r\n        self.cmbParamValue.Items.Add(\"-- Select Parameter Value --\")\r\n        for v in sorted_values:\r\n            self.cmbParamValue.Items.Add(v)\r\n        self.cmbParamValue.SelectedIndex = 0\r\n        self.cmbParamValue.IsEnabled = True\r\n\r\n    # ── Collect target element ids ───────────────────────────────────────────\r\n    def _get_target_element_ids(self):\r\n        \"\"\"\r\n        Trả về List[ElementId] ứng với giá trị parameter được chọn.\r\n        Trả về None nếu chưa chọn đủ thông tin.\r\n        \"\"\"\r\n        if self.cmbParamValue.SelectedIndex <= 0:\r\n            return None\r\n\r\n        value_str = self.cmbParamValue.SelectedItem\r\n        raw_ids   = self._value_dict.get(value_str, [])\r\n        ids = List[ElementId]()\r\n        for eid in raw_ids:\r\n            ids.Add(eid)\r\n        return ids\r\n\r\n    # ── Button handlers ──────────────────────────────────────────────────────\r\n    def OnIsolate(self, sender, e):\r\n        try:\r\n            ids = self._get_target_element_ids()\r\n            if ids is None or ids.Count == 0:\r\n                MessageBox.Show(\r\n                    \"Vui lòng chọn đầy đủ Category, Parameter Group, Parameter Name và Parameter Value!\",\r\n                    \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning\r\n                )\r\n                return\r\n\r\n            t = Transaction(self.doc, \"Isolate Elements by Parameter\")\r\n            t.Start()\r\n            try:\r\n                self.view.IsolateElementsTemporary(ids)\r\n                t.Commit()\r\n                self.window.Close()\r\n            except Exception as ex:\r\n                t.RollBack()\r\n                MessageBox.Show(\r\n                    \"Không thể Isolate:\\n\" + str(ex),\r\n                    \"Error\", MessageBoxButton.OK, MessageBoxImage.Error\r\n                )\r\n        except Exception as ex:\r\n            MessageBox.Show(\r\n                \"Lỗi khi thực hiện Isolate:\\n\" + str(ex),\r\n                \"Error\", MessageBoxButton.OK, MessageBoxImage.Error\r\n            )\r\n\r\n    def OnHide(self, sender, e):\r\n        try:\r\n            ids = self._get_target_element_ids()\r\n            if ids is None or ids.Count == 0:\r\n                MessageBox.Show(\r\n                    \"Vui lòng chọn đầy đủ Category, Parameter Group, Parameter Name và Parameter Value!\",\r\n                    \"Warning\", MessageBoxButton.OK, MessageBoxImage.Warning\r\n                )\r\n                return\r\n\r\n            t = Transaction(self.doc, \"Hide Elements by Parameter\")\r\n            t.Start()\r\n            try:\r\n                self.view.HideElements(ids)\r\n                t.Commit()\r\n                self.window.Close()\r\n            except Exception as ex:\r\n                t.RollBack()\r\n                MessageBox.Show(\r\n                    \"Không thể Hide:\\n\" + str(ex),\r\n                    \"Error\", MessageBoxButton.OK, MessageBoxImage.Error\r\n                )\r\n        except Exception as ex:\r\n            MessageBox.Show(\r\n                \"Lỗi khi thực hiện Hide:\\n\" + str(ex),\r\n                \"Error\", MessageBoxButton.OK, MessageBoxImage.Error\r\n            )\r\n\r\n    def OnCancel(self, sender, e):\r\n        self.window.Close()\r\n\r\n    def show(self):\r\n        self.window.ShowDialog()\r\n#endregion\r\n\r\n\r\ndef main():\r\n    app = FilterByParameterWindow(doc, uidoc, view)\r\n    app.show()\r\n\r\n# Execute directly in Dynamo Environment\r\nmain()\r\nOUT = \"Success\"",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "NodeType": "BooleanInputNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False",
+      "InputValue": true
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.19.3.6394",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "Name": "Hello World",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 473.52293100415625,
+        "Y": 131.70691563513685
+      },
+      {
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "Name": "Boolean",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 97.235676123079941,
+        "Y": 133.05673569568208
+      }
+    ],
+    "Annotations": [],
+    "X": 66.320928429214746,
+    "Y": 76.59637572403409,
+    "Zoom": 0.78436932804482706
+  }
+}

@@ -4,10 +4,11 @@ title:
   en_us: Other
 layout:
   - edit1
+  - -----
   - edit2
-  - edit3
+  - -----
   - AutoJoin
-  - AlignPointCloud
+  - -----
   - ColorStructure
-  - MergeCad
+  - -----
  
