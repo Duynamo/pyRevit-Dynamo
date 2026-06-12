@@ -1,0 +1,173 @@
+{
+  "Uuid": "31e9bd7e-87f3-466f-ac3e-432fa9028d5e",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "LinkCadToFloorViews_script",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport os\r\n\r\n# Revit API & Services\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import * \r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import *\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\n# Windows Forms for UI\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Revit Context\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = uiapp.ActiveUIDocument\r\n#endregion\r\n\r\n#region ___Helper Functions\r\ndef get_all_floor_plans(doc):\r\n    \"\"\"Lấy tất cả các ViewPlan không phải là template và sắp xếp theo tên.\"\"\"\r\n    collector = FilteredElementCollector(doc).OfClass(ViewPlan)\r\n    # Lọc ra các floor plan thực sự, không phải template\r\n    floor_plans = [v for v in collector if not v.IsTemplate and v.ViewType == ViewType.FloorPlan]\r\n    # Sắp xếp theo tên để dễ tìm kiếm trong UI\r\n    floor_plans.sort(key=lambda x: x.Name)\r\n    return floor_plans\r\n#endregion\r\n\r\n#region ___Main UI Form\r\nclass LinkCadToFloorViewsForm(Form):\r\n    def __init__(self):\r\n        self.filePathMap = {}\r\n        self.last_selected_list = None\r\n        self.InitializeComponent()\r\n\r\n    def InitializeComponent(self):\r\n        # --- UI Dimensions ---\r\n        self.Text = \"Link CAD to Floor Views\"\r\n        self.ClientSize = Size(650, 450)\r\n        self.StartPosition = FormStartPosition.CenterScreen\r\n        self.FormBorderStyle = FormBorderStyle.FixedDialog\r\n        self.MaximizeBox = False\r\n        self.Font = Font(\"Segoe UI\", 9)\r\n        self.BackColor = Color.FromArgb(245, 246, 248)\r\n\r\n        # --- GroupBox: Floor Views ---\r\n        self._grb_FloorView = GroupBox()\r\n        self._grb_FloorView.Text = \"1. Select Floor Views\"\r\n        self._grb_FloorView.Location = Point(15, 15)\r\n        self._grb_FloorView.Size = Size(300, 350)\r\n        self.Controls.Add(self._grb_FloorView)\r\n\r\n        # --- GroupBox: CAD Files ---\r\n        self._grb_LinkCadPath = GroupBox()\r\n        self._grb_LinkCadPath.Text = \"2. Select CAD Files\"\r\n        self._grb_LinkCadPath.Location = Point(330, 15)\r\n        self._grb_LinkCadPath.Size = Size(300, 350)\r\n        self.Controls.Add(self._grb_LinkCadPath)\r\n\r\n        # --- Controls for Floor Views ---\r\n        self._clb_FloorView = CheckedListBox()\r\n        self._clb_FloorView.DisplayMember = 'Name'\r\n        self._clb_FloorView.Location = Point(15, 60)\r\n        self._clb_FloorView.Size = Size(270, 275)\r\n        self._clb_FloorView.CheckOnClick = True\r\n        self._clb_FloorView.Items.AddRange(System.Array[System.Object](get_all_floor_plans(doc)))\r\n        self._clb_FloorView.SelectedIndexChanged += self.OnListSelectionChanged\r\n        self._grb_FloorView.Controls.Add(self._clb_FloorView)\r\n\r\n        self._ckb_AllNoneFloorView = CheckBox()\r\n        self._ckb_AllNoneFloorView.Text = \"All / None\"\r\n        self._ckb_AllNoneFloorView.Location = Point(15, 30)\r\n        self._ckb_AllNoneFloorView.AutoSize = True\r\n        self._ckb_AllNoneFloorView.CheckedChanged += self.Ckb_AllNoneFloorViewCheckedChanged\r\n        self._grb_FloorView.Controls.Add(self._ckb_AllNoneFloorView)\r\n\r\n        # --- Controls for CAD Files ---\r\n        self._btt_LinkCad = Button()\r\n        self._btt_LinkCad.Text = \"Browse Files...\"\r\n        self._btt_LinkCad.Location = Point(15, 25)\r\n        self._btt_LinkCad.Size = Size(120, 30)\r\n        self._btt_LinkCad.Click += self.Btt_LinkCadClick\r\n        self._grb_LinkCadPath.Controls.Add(self._btt_LinkCad)\r\n\r\n        self._btt_Reset = Button()\r\n        self._btt_Reset.Text = \"Reset List\"\r\n        self._btt_Reset.Location = Point(145, 25)\r\n        self._btt_Reset.Size = Size(120, 30)\r\n        self._btt_Reset.Click += self.Btt_ResetClick\r\n        self._grb_LinkCadPath.Controls.Add(self._btt_Reset)\r\n\r\n        self._clb_LinkCad = CheckedListBox()\r\n        self._clb_LinkCad.Location = Point(15, 95)\r\n        self._clb_LinkCad.Size = Size(270, 240)\r\n        self._clb_LinkCad.CheckOnClick = True\r\n        self._clb_LinkCad.SelectedIndexChanged += self.OnListSelectionChanged\r\n        self._grb_LinkCadPath.Controls.Add(self._clb_LinkCad)\r\n\r\n        self._ckb_AllNoneCad = CheckBox()\r\n        self._ckb_AllNoneCad.Text = \"All / None\"\r\n        self._ckb_AllNoneCad.Location = Point(15, 65)\r\n        self._ckb_AllNoneCad.AutoSize = True\r\n        self._ckb_AllNoneCad.CheckedChanged += self.Ckb_AllNoneCadCheckedChanged\r\n        self._grb_LinkCadPath.Controls.Add(self._ckb_AllNoneCad)\r\n\r\n        # --- Action Buttons ---\r\n        self._btt_Up = Button()\r\n        self._btt_Up.Text = \"Up\"\r\n        self._btt_Up.Location = Point(15, 380)\r\n        self._btt_Up.Size = Size(75, 30)\r\n        self._btt_Up.Click += self.Btt_UpClick\r\n        self.Controls.Add(self._btt_Up)\r\n\r\n        self._btt_Down = Button()\r\n        self._btt_Down.Text = \"Down\"\r\n        self._btt_Down.Location = Point(100, 380)\r\n        self._btt_Down.Size = Size(75, 30)\r\n        self._btt_Down.Click += self.Btt_DownClick\r\n        self.Controls.Add(self._btt_Down)\r\n\r\n        self._btt_Run = Button()\r\n        self._btt_Run.Text = \"RUN\"\r\n        self._btt_Run.Font = Font(\"Segoe UI\", 10, FontStyle.Bold)\r\n        self._btt_Run.BackColor = Color.FromArgb(76, 175, 80)\r\n        self._btt_Run.ForeColor = Color.White\r\n        self._btt_Run.Location = Point(420, 380)\r\n        self._btt_Run.Size = Size(100, 35)\r\n        self._btt_Run.Click += self.Btt_RunClick\r\n        self.Controls.Add(self._btt_Run)\r\n\r\n        self._btt_Cancle = Button()\r\n        self._btt_Cancle.Text = \"CANCEL\"\r\n        self._btt_Cancle.Location = Point(530, 380)\r\n        self._btt_Cancle.Size = Size(100, 35)\r\n        self._btt_Cancle.Click += self.Btt_CancleClick\r\n        self.Controls.Add(self._btt_Cancle)\r\n\r\n        # --- Copyright Label ---\r\n        self._lbl_Copyright = Label()\r\n        self._lbl_Copyright.Text = \"@V2D\"\r\n        self._lbl_Copyright.Font = Font(\"Segoe UI\", 8, FontStyle.Bold)\r\n        self._lbl_Copyright.ForeColor = Color.Gray\r\n        self._lbl_Copyright.AutoSize = True\r\n        self._lbl_Copyright.Location = Point(15, 420)\r\n        self.Controls.Add(self._lbl_Copyright)\r\n\r\n        self.TopMost = True\r\n\r\n    def OnListSelectionChanged(self, sender, e):\r\n        if sender.Focused:\r\n            self.last_selected_list = sender\r\n            if sender == self._clb_FloorView:\r\n                self._clb_LinkCad.SelectedIndex = -1\r\n            else:\r\n                self._clb_FloorView.SelectedIndex = -1\r\n\r\n    def Ckb_AllNoneFloorViewCheckedChanged(self, sender, e):\r\n        self.ToggleAllItems(self._clb_FloorView, self._ckb_AllNoneFloorView.Checked)\r\n\r\n    def Ckb_AllNoneCadCheckedChanged(self, sender, e):\r\n        self.ToggleAllItems(self._clb_LinkCad, self._ckb_AllNoneCad.Checked)\r\n\r\n    def ToggleAllItems(self, checklistbox, state):\r\n        for i in range(checklistbox.Items.Count):\r\n            checklistbox.SetItemChecked(i, state)\r\n\r\n    def Btt_LinkCadClick(self, sender, e):\r\n        openDialog = OpenFileDialog()\r\n        openDialog.Multiselect = True\r\n        openDialog.Filter = \"DWG Files (*.dwg)|*.dwg|All Files (*.*)|*.*\"\r\n        if openDialog.ShowDialog() == DialogResult.OK:\r\n            for filePath in openDialog.FileNames:\r\n                fileName = os.path.basename(filePath)\r\n                if fileName not in self.filePathMap:\r\n                    self._clb_LinkCad.Items.Add(fileName)\r\n                    self.filePathMap[fileName] = filePath\r\n            self._ckb_AllNoneCad.Checked = True\r\n\r\n    def Btt_ResetClick(self, sender, e):\r\n        self._clb_LinkCad.Items.Clear()\r\n        self.filePathMap.clear()\r\n\r\n    def Btt_UpClick(self, sender, e):\r\n        if self.last_selected_list:\r\n            self.MoveItem(self.last_selected_list, -1)\r\n\r\n    def Btt_DownClick(self, sender, e):\r\n        if self.last_selected_list:\r\n            self.MoveItem(self.last_selected_list, 1)\r\n\r\n    def MoveItem(self, checklistbox, direction):\r\n        if checklistbox.SelectedItem is None:\r\n            MessageBox.Show(\"Please select an item to move.\", \"Information\")\r\n            return\r\n        \r\n        index = checklistbox.SelectedIndex\r\n        if direction == -1 and index > 0:\r\n            newIndex = index - 1\r\n        elif direction == 1 and index < checklistbox.Items.Count - 1:\r\n            newIndex = index + 1\r\n        else:\r\n            return\r\n\r\n        item = checklistbox.SelectedItem\r\n        isChecked = checklistbox.GetItemChecked(index)\r\n        \r\n        checklistbox.Items.RemoveAt(index)\r\n        checklistbox.Items.Insert(newIndex, item)\r\n        checklistbox.SetItemChecked(newIndex, isChecked)\r\n        checklistbox.SelectedIndex = newIndex\r\n\r\n    def Btt_RunClick(self, sender, e):\r\n        floorViews = [item for item in self._clb_FloorView.CheckedItems]\r\n        linkCadNames = [item for item in self._clb_LinkCad.CheckedItems]\r\n\r\n        if len(floorViews) != len(linkCadNames):\r\n            MessageBox.Show(\"The number of selected views must match the number of selected CAD files.\", \"Error\")\r\n            return\r\n        \r\n        if not floorViews:\r\n            MessageBox.Show(\"Please select at least one view and one CAD file.\", \"Error\")\r\n            return\r\n\r\n        linkCads = [self.filePathMap[name] for name in linkCadNames]\r\n\r\n        options = DWGImportOptions()\r\n        options.AutoCorrectAlmostVHLines = True\r\n        options.CustomScale = 1\r\n        options.OrientToView = True\r\n        options.ThisViewOnly = False\r\n        options.VisibleLayersOnly = False\r\n        options.ColorMode = ImportColorMode.Preserved\r\n        options.Placement = ImportPlacement.Origin\r\n        options.Unit = ImportUnit.Millimeter\r\n\r\n        linkedElem = clr.Reference[ElementId]()\r\n        \r\n        TransactionManager.Instance.EnsureInTransaction(doc)\r\n        try:\r\n            for floorView, linkCad in zip(floorViews, linkCads):\r\n                # Link the CAD file to the specified floor view\r\n                doc.Link(linkCad, options, floorView, linkedElem)\r\n                importInst = doc.GetElement(linkedElem.Value)\r\n                # Unpin the linked instance so it can be moved if needed later\r\n                if importInst:\r\n                    importInst.Pinned = False\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n            MessageBox.Show(\"Successfully linked {} CAD files.\".format(len(linkCads)), \"Success\")\r\n            self.Close()\r\n        except Exception as ex:\r\n            TransactionManager.Instance.ForceCloseTransaction()\r\n            MessageBox.Show(\"An error occurred: \" + str(ex), \"Error\")\r\n\r\n    def Btt_CancleClick(self, sender, e):\r\n        self.Close()\r\n\r\n#endregion\r\n\r\n# --- Main Execution ---\r\ntry:\r\n    form = LinkCadToFloorViewsForm()\r\n    Application.Run(form)\r\nexcept Exception as e:\r\n    MessageBox.Show(\"Failed to launch the tool: \" + str(e), \"Error\")",
+      "Engine": "IronPython2",
+      "EngineName": "IronPython2",
+      "VariableInputPorts": true,
+      "Id": "0122234ee9c249f39aa5138879075566",
+      "Inputs": [
+        {
+          "Id": "591b323c053a4161b5e62a7873abf7f9",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "cdc26fb7d7a74af2be08c5fafdde9e68",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": false,
+      "Id": "5af2b010bc3547cd9e363fbb23363d62",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "b2886da07d894438bca2ec5308ecccf6",
+          "Name": "",
+          "Description": "Boolean",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Enables selection between True and False"
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "b2886da07d894438bca2ec5308ecccf6",
+      "End": "591b323c053a4161b5e62a7873abf7f9",
+      "Id": "f5c48415ef344846a3a914aa5f69690c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.19",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.1",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.17.0.3472",
+      "RunType": "Automatic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Name": "Hello World",
+        "ShowGeometry": true,
+        "Id": "0122234ee9c249f39aa5138879075566",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 473.52293100415625,
+        "Y": 131.70691563513685
+      },
+      {
+        "Name": "Boolean",
+        "ShowGeometry": true,
+        "Id": "5af2b010bc3547cd9e363fbb23363d62",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 97.235676123079941,
+        "Y": 133.05673569568208
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "1aa6dfd11cc64f269aac6a608c3df26d",
+        "Title": "@D",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "0122234ee9c249f39aa5138879075566",
+          "5af2b010bc3547cd9e363fbb23363d62"
+        ],
+        "HasNestedGroups": false,
+        "Left": 87.235676123079941,
+        "Top": 59.306915635136853,
+        "Width": 561.08725488107643,
+        "Height": 205.8,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 131.70691563513685,
+        "InitialHeight": 146.34982006054523,
+        "TextblockHeight": 62.4,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": 66.320928429214746,
+    "Y": 76.59637572403409,
+    "Zoom": 0.78436932804482706
+  }
+}

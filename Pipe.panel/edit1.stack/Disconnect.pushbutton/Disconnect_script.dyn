@@ -12,8 +12,9 @@
     {
       "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
       "NodeType": "PythonScriptNode",
-      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nfrom math import cos,sin,tan,radians\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"System.Windows.Forms\")\r\nclr.AddReference(\"System.Drawing\")\r\nclr.AddReference(\"System.Windows.Forms.DataVisualization\")\r\n\r\nimport System.Windows.Forms \r\nfrom System.Windows.Forms import *\r\nimport System.Drawing\r\nfrom System.Drawing import *\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n#region ___someFunctions\r\ndef uwList(input):\r\n    result = input if isinstance(input, list) else [input]\r\n    return UnwrapElement(input)\r\ndef flatten(nestedList):\r\n    flatList = []\r\n    for item in nestedList:\r\n        if isinstance(item, list):\r\n            flatList.extend(flatten(item))\r\n        else:\r\n            flatList.append(item)\r\n    return flatList\r\nclass PipeSelectionFilter(ISelectionFilter):\r\n    def AllowElement(self, element):\r\n        category = element.Category\r\n        if category is None:\r\n            return False\r\n        return category.Name in [\"Pipes\", \"Pipe Fittings\", \"Pipe Accessories\"]\r\n    def AllowReference(self, reference, position):\r\n        return False\r\n# Pick the element\r\ndef pickElement():\r\n    pipeFilter = PipeSelectionFilter()\r\n    ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipeFilter, \"Pick a pipe, fitting, or accessory\")\r\n    element = doc.GetElement(ref.ElementId)\r\n    return element\r\n# Disconnect all connectors of the element\r\ndef findConnectors(element):\r\n    connectors = []\r\n    if element.Category.Name == \"Pipes\":\r\n        connectors = [conn for conn in element.ConnectorManager.Connectors]\r\n    if element.Category.Name != \"Pipes\":\r\n        connectors = [conn for conn in element.MEPModel.ConnectorManager.Connectors]\r\n    return connectors\r\ndef disconnectConnectors(element):\r\n    connectors = findConnectors(element)\r\n    for connector in connectors:\r\n        for connected_connector in connector.AllRefs:\r\n            if connected_connector.IsConnected:\r\n                connector.DisconnectFrom(connected_connector)\r\n    return connectors\r\n#endregion\r\neleList   = uwList(IN[0])\r\n# Do some action in a Transaction\r\nTransactionManager.Instance.EnsureInTransaction(doc)\r\nele = pickElement()\r\nTransactionManager.Instance.TransactionTaskDone()\r\nOUT = disconnectConnectors(ele)\r\n",
+      "Code": "\"\"\"Copyright by: vudinhduybm@gmail.com\"\"\"\r\n#region ___import all Library\r\nimport clr\r\nimport sys \r\nimport System   \r\nimport math\r\nimport collections\r\n\r\nclr.AddReference(\"ProtoGeometry\")\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\nclr.AddReference(\"RevitAPI\") \r\nimport Autodesk\r\nfrom Autodesk.Revit.DB import* \r\nfrom Autodesk.Revit.DB.Structure import*\r\n\r\nclr.AddReference(\"RevitAPIUI\") \r\nfrom Autodesk.Revit.UI import*\r\nfrom Autodesk.Revit.UI.Selection import ISelectionFilter\r\nclr.AddReference(\"System\") \r\nfrom System.Collections.Generic import List\r\n\r\nclr.AddReference(\"RevitNodes\")\r\nimport Revit\r\nclr.ImportExtensions(Revit.Elements)\r\nclr.ImportExtensions(Revit.GeometryConversion)\r\n\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\n#endregion\r\n\r\n#region ___Current doc/app/ui\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\nuiapp = DocumentManager.Instance.CurrentUIApplication\r\napp = uiapp.Application\r\nuidoc = DocumentManager.Instance.CurrentUIApplication.ActiveUIDocument\r\nview = doc.ActiveView\r\n#endregion\r\n\r\n#region ___someFunctions\r\nclass PipeSelectionFilter(ISelectionFilter):\r\n    \"\"\"Lớp lọc lựa chọn cho phép chọn Pipes, Pipe Fittings, và Pipe Accessories.\"\"\"\r\n    def AllowElement(self, element):\r\n        category = element.Category\r\n        if category is None:\r\n            return False\r\n        return category.Name in [\"Pipes\", \"Pipe Fittings\", \"Pipe Accessories\"]\r\n\r\n    def AllowReference(self, reference, position):\r\n        # Phương thức này phải được triển khai, trả về True là một mặc định an toàn.\r\n        return True\r\n\r\ndef pick_element(prompt_message):\r\n    \"\"\"Cho phép người dùng chọn một đối tượng với bộ lọc và thông báo tùy chỉnh.\"\"\"\r\n    try:\r\n        pipe_filter = PipeSelectionFilter()\r\n        ref = uidoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, pipe_filter, prompt_message)\r\n        return doc.GetElement(ref.ElementId)\r\n    except:\r\n        return None\r\n\r\ndef find_connectors(element):\r\n    \"\"\"Tìm tất cả các connector của một đối tượng (Pipe, Fitting, Accessory).\"\"\"\r\n    connectors = []\r\n    if element is None:\r\n        return connectors\r\n        \r\n    # Đối với Pipes, dùng ConnectorManager\r\n    if hasattr(element, 'ConnectorManager') and element.ConnectorManager is not None:\r\n        for conn in element.ConnectorManager.Connectors:\r\n            connectors.append(conn)\r\n    # Đối với Fittings/Accessories, dùng MEPModel.ConnectorManager\r\n    elif hasattr(element, 'MEPModel') and element.MEPModel is not None:\r\n        for conn in element.MEPModel.ConnectorManager.Connectors:\r\n            connectors.append(conn)\r\n            \r\n    return connectors\r\n\r\ndef find_and_disconnect_nearest(element1, element2):\r\n    \"\"\"\r\n    Tìm cặp connector gần nhất giữa hai đối tượng,\r\n    và ngắt kết nối nếu chúng đang được kết nối.\r\n    \"\"\"\r\n    connectors1 = find_connectors(element1)\r\n    connectors2 = find_connectors(element2)\r\n\r\n    if not connectors1 or not connectors2:\r\n        return \"Lỗi: Một hoặc cả hai đối tượng không có connector.\"\r\n\r\n    # Tìm cặp connector gần nhất\r\n    min_distance = float('inf')\r\n    nearest_conn1 = None\r\n    nearest_conn2 = None\r\n\r\n    for c1 in connectors1:\r\n        for c2 in connectors2:\r\n            distance = c1.Origin.DistanceTo(c2.Origin)\r\n            if distance < min_distance:\r\n                min_distance = distance\r\n                nearest_conn1 = c1\r\n                nearest_conn2 = c2\r\n\r\n    if nearest_conn1 is None or nearest_conn2 is None:\r\n        return \"Không thể tìm thấy các connector gần nhất.\"\r\n\r\n    # Kiểm tra xem chúng có được kết nối với nhau không\r\n    is_connected = False\r\n    for ref_conn in nearest_conn1.AllRefs:\r\n        if ref_conn.Owner.Id == nearest_conn2.Owner.Id:\r\n            is_connected = True\r\n            break\r\n    \r\n    if is_connected:\r\n        TransactionManager.Instance.EnsureInTransaction(doc)\r\n        try:\r\n            nearest_conn1.DisconnectFrom(nearest_conn2)\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n            return \"Đã ngắt kết nối thành công cặp connector gần nhất.\"\r\n        except Exception as ex:\r\n            TransactionManager.Instance.TransactionTaskDone()\r\n            return \"Lỗi khi ngắt kết nối: \" + str(ex)\r\n    else:\r\n        return \"Các connector gần nhất không được kết nối với nhau.\"\r\n\r\n#endregion\r\n\r\n# --- Main execution ---\r\ntry:\r\n    ele1 = pick_element(\"Chọn đối tượng thứ nhất\")\r\n    if ele1:\r\n        ele2 = pick_element(\"Chọn đối tượng thứ hai\")\r\n        if ele2:\r\n            # Thực hiện hành động\r\n            result = find_and_disconnect_nearest(ele1, ele2)\r\n            OUT = result\r\n        else:\r\n            OUT = \"Đã hủy chọn đối tượng thứ hai.\"\r\n    else:\r\n        OUT = \"Đã hủy chọn đối tượng thứ nhất.\"\r\n\r\nexcept Exception as e:\r\n    # Bắt lỗi nếu người dùng nhấn Esc\r\n    if \"OperationCanceledException\" in str(e):\r\n        OUT = \"Thao tác đã bị hủy bởi người dùng.\"\r\n    else:\r\n        OUT = \"Đã xảy ra lỗi: \" + str(e)\r\n",
       "Engine": "IronPython2",
+      "EngineName": "IronPython2",
       "VariableInputPorts": true,
       "Id": "910d4f1cb8fd47eb892abd704d730e5e",
       "Inputs": [
@@ -59,30 +60,54 @@
         }
       ],
       "Replication": "Disabled",
-      "Description": "Selection between a true and false."
+      "Description": "Enables selection between True and False"
     }
   ],
   "Connectors": [
     {
       "Start": "5b81a77fb8fc4b659600a6ee09d34a69",
       "End": "39a4c11b62034c848914282392095ea6",
-      "Id": "a58a87c4d5294367a9ba3adacf1ab9eb"
+      "Id": "a58a87c4d5294367a9ba3adacf1ab9eb",
+      "IsHidden": "False"
     }
   ],
   "Dependencies": [],
   "NodeLibraryDependencies": [],
+  "Thumbnail": null,
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.17",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "4.0",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
   "Bindings": [],
   "View": {
     "Dynamo": {
       "ScaleFactor": 1.0,
       "HasRunWithoutCrash": true,
       "IsVisibleInDynamoLibrary": true,
-      "Version": "2.10.1.3976",
-      "RunType": "Manual",
+      "Version": "2.17.0.3472",
+      "RunType": "Automatic",
       "RunPeriod": "1000"
     },
     "Camera": {
-      "Name": "Background Preview",
+      "Name": "_Background Preview",
       "EyeX": -17.0,
       "EyeY": 24.0,
       "EyeZ": 50.0,
@@ -93,10 +118,11 @@
       "UpY": 1.0,
       "UpZ": 0.0
     },
+    "ConnectorPins": [],
     "NodeViews": [
       {
-        "ShowGeometry": true,
         "Name": "Python Script",
+        "ShowGeometry": true,
         "Id": "910d4f1cb8fd47eb892abd704d730e5e",
         "IsSetAsInput": false,
         "IsSetAsOutput": false,
@@ -105,8 +131,8 @@
         "Y": 206.61771058315341
       },
       {
-        "ShowGeometry": true,
         "Name": "Boolean",
+        "ShowGeometry": true,
         "Id": "be991531aadf4d508302e6ae59f1be43",
         "IsSetAsInput": false,
         "IsSetAsOutput": false,

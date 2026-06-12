@@ -3,6 +3,4 @@ title:
   fr_fr: Modifier
   en_us: Cad
 layout:
-  - MergeCad
-  - LinkCadToSectionViews
- 
+  - edit1

@@ -3,4 +3,5 @@ title:
   fr_fr: Modifier
   en_us: Point Cloud
 layout:
-  - edit1
+  - AlignPointCloud
+  - ExportOrignToXML
